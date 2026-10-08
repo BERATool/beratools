@@ -15,7 +15,7 @@ This tool is part of the [**Boreal Ecosystem Recovery and Assessment (BERA)**](h
 
 ## Code signing policy
 
-Official BERA Tools Windows installers are signed according to the project [Code signing policy](https://github.com/BERATool/beratools/blob/main/CODE_SIGNING_POLICY.md).
+BERA Tools Windows signing is currently off by default and can be enabled per run according to the project [Code signing policy](https://github.com/BERATool/beratools/blob/main/CODE_SIGNING_POLICY.md). Unsigned releases use the `-unsigned.exe` suffix and are identified as unsigned in the release notes.
 
 ### Cite Us
 

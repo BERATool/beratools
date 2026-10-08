@@ -51,10 +51,11 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - Runs `tests/test_workflow.py` through tox under Python 3.12, 3.13, and 3.14 without relying on Ubuntu apt GDAL.
 
 - __build-win-installer.yml__
-    - Summary: Builds and signs the Windows installer in test or release mode.
+    - Summary: Builds the Windows installer in test or release mode, with signing currently off by default.
     - Trigger: Manually triggered via `workflow_dispatch` on the selected branch.
-    - With no release tag, uses `test-signing` and uploads test-signed Actions artifacts without publishing a GitHub Release.
-    - With a release tag, requires `main`, verifies that the tag points exactly to the dispatched commit, uses `release-signing`, and attaches the approved installer to that GitHub Release.
+    - With signing enabled and no release tag, uses `test-signing` and uploads test-signed Actions artifacts without publishing a GitHub Release.
+    - With signing enabled and a release tag, requires `main`, verifies that the latest numeric tag points exactly to the dispatched commit, uses `release-signing`, and attaches the approved installer to that GitHub Release.
+    - **Skip SignPath** is checked by default. Unsigned Actions artifacts are retained; a validated latest release tag also publishes a `-unsigned.exe` asset with unsigned release notes. Uncheck it to enable signing. Signing failures do not activate this option automatically.
 
 - __publish_to_anaconda.yml__
     - Summary: Builds and smoke-tests Conda packages, publishes eligible releases to Anaconda.org, and attaches test data to GitHub Releases.
@@ -62,14 +63,15 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - With no release tag, runs a non-publishing build and smoke test and uploads the Conda package as an Actions artifact.
     - With a release tag, publishes only from `main` when the latest numeric tag points exactly to the dispatched commit.
 
-### Version tag push
-
 - __publish_to_pypi.yml__
-    - Summary: Official PyPI publish workflow for tagged releases.
-    - Trigger: On version tag push from `main`.
-    - Builds the package and publishes to PyPI.
+    - Summary: Builds and checks PyPI distributions, then publishes eligible manually selected releases.
+    - Trigger: Manually triggered via `workflow_dispatch`; pushing a version tag does not start this workflow.
+    - With no release tag, checks distribution metadata and uploads the packages as a dry-run Actions artifact.
+    - With a release tag, publishes only from `main` when the latest numeric tag points exactly to the dispatched commit and both package versions match. A valid but ineligible tag becomes a dry run; malformed or missing tags fail validation.
 
 See [Publishing BERA Tools](publishing.md#windows-installer-signing) for the signing and release procedure.
+
+To check release guards locally without publishing, run `pixi run python tests/check_publish_workflows.py`. This executes the workflow's Bash and PowerShell scripts in a disposable Git repository and checks unsigned installer labeling. Bash and PowerShell 7 (`pwsh`) must be installed; on Windows, the check uses Git Bash.
 
 ### Configuration
 
@@ -81,7 +83,9 @@ GitHub has been configured to use repository secrets for sensitive information s
 
 ![Actions](../screenshots/gh_repo_secrets.png)  
 
-Windows signing requires the `SIGNPATH_API_TOKEN` and `SIGNPATH_ORGANIZATION_ID` repository secrets. The SignPath action must also remain allowed under Repository Settings -> Actions -> General -> Actions permissions. Secret values must never be added to source control or documentation.
+Windows signing requires the `SIGNPATH_API_TOKEN` and `SIGNPATH_ORGANIZATION_ID` repository secrets. The SignPath action must also remain allowed under Repository Settings -> Actions -> General -> Actions permissions. Explicit unsigned builds skip SignPath and do not use those secrets. Secret values must never be added to source control or documentation.
+
+PyPI uses trusted publishing for owner `BERATool`, repository `beratools`, workflow `publish_to_pypi.yml`, and no GitHub environment. Update the PyPI publisher registration after a repository transfer.
 
 ### Actions Flow
 
@@ -99,17 +103,21 @@ flowchart LR
 
     CheckType -->|Manual trigger| Manual[Workflow Dispatch]
     Manual --> Compatibility[Python Compatibility Matrix]
+    Manual --> PackageMode{Eligible release tag on main?}
+    PackageMode -->|No| PackageDryRun[PyPI or Conda dry run artifact]
+    PackageMode -->|Yes| Anaconda[Conda publication]
+    PackageMode -->|Yes| PyPI[PyPI publication]
     Manual --> InstallerMode{Release tag supplied?}
     InstallerMode -->|No| InstallerTest[Windows Installer Test]
-    InstallerTest --> TestSign[SignPath test-signing]
+    InstallerTest --> TestSigning{Skip SignPath?}
+    TestSigning -->|No| TestSign[SignPath test-signing]
     TestSign --> SignedTest[Signed Actions Artifact]
-    InstallerMode -->|Yes, from main| WindowsInstaller[Windows Installer Release]
-    WindowsInstaller --> SignPathApproval[SignPath Approval]
+    TestSigning -->|Yes| UnsignedTest[Unsigned Actions Artifact]
+    InstallerMode -->|Yes, latest tag matches main| WindowsInstaller[Windows Installer Release]
+    WindowsInstaller --> ReleaseSigning{Skip SignPath?}
+    ReleaseSigning -->|No| SignPathApproval[SignPath Approval]
     SignPathApproval --> SignedRelease[Signed GitHub Release]
-    
-    CheckType -->|Version tag| Release[Release]
-    Release --> Anaconda[Conda]
-    Release --> PyPI[PyPI]
+    ReleaseSigning -->|Yes| UnsignedRelease[Explicitly unsigned GitHub Release]
     
     classDef push fill:#e1f5ff,stroke:#01579b
     classDef pr fill:#fff3e0,stroke:#e65100
@@ -117,9 +125,9 @@ flowchart LR
     classDef rel fill:#e8f5e9,stroke:#2e7d32
     
     class Zensical,IntegrationPush push
-    class Compatibility,InstallerMode,InstallerTest,TestSign,SignedTest manual
+    class Compatibility,PackageMode,PackageDryRun,InstallerMode,InstallerTest,TestSigning,TestSign,SignedTest,UnsignedTest manual
     class IntegrationPR pr
-    class Anaconda,PyPI,WindowsInstaller,SignPathApproval,SignedRelease rel
+    class Anaconda,PyPI,WindowsInstaller,ReleaseSigning,SignPathApproval,SignedRelease,UnsignedRelease rel
 ```
 
 ## Secure our repository

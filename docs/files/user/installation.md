@@ -11,13 +11,15 @@ Welcome to **BERA Tools**! This guide will give you advanced installation option
 
 ### Windows Installer
 
-Download the standalone Windows installer from the [latest BERA Tools release](https://github.com/BERATool/beratools/releases/latest). Official installers are signed according to the project [Code signing policy](https://github.com/BERATool/beratools/blob/main/CODE_SIGNING_POLICY.md).
+Download the standalone Windows installer from the [latest BERA Tools release](https://github.com/BERATool/beratools/releases/latest). Signing is currently off by default; maintainers can enable it per run according to the project [Code signing policy](https://github.com/BERATool/beratools/blob/main/CODE_SIGNING_POLICY.md).
 
 Only installers attached to an official GitHub Release are intended for users. Artifacts from manual signing tests use a self-signed test certificate and must not be distributed.
 
+When signing is skipped, the release includes `beratools-installer-x.y.z-unsigned.exe` and release notes identifying it as unsigned. These assets have no Authenticode signature, so Windows may display an unknown-publisher or SmartScreen warning. Prefer the signed installer when available.
+
 #### Verify the Installer Signature
 
-Before running a downloaded installer on Windows:
+For a signed installer (without the `-unsigned` suffix), check its signature before running it on Windows:
 
 1. Right-click the installer and select **Properties**.
 2. Open the **Digital Signatures** tab.
@@ -31,7 +33,7 @@ Get-AuthenticodeSignature .\beratools-installer-x.y.z.exe |
     Format-List Status, StatusMessage, SignerCertificate, TimeStamperCertificate
 ```
 
-For an official release, `Status` must be `Valid`. Do not run the installer if the signature is missing or invalid.
+For a signed release asset, `Status` must be `Valid`. Do not run an asset advertised as signed if its signature is missing or invalid. Explicitly labeled `-unsigned.exe` assets instead report `NotSigned`; they are not verified by SignPath.
 
 ### Using conda
 
