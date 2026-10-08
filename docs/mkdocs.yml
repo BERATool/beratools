@@ -3,7 +3,7 @@ site_name: BERA Tools Guide
 
 theme:
   name: material
-  repo_url: https://github.com/appliedgrg/beratools
+  repo_url: https://github.com/BERATool/beratools
   repo_name: GitHub
   palette:
     - media: "(prefers-color-scheme)"
@@ -38,7 +38,7 @@ theme:
   favicon: icons/bera_logo.png
   logo: icons/bera_logo.svg
 
-repo_url: https://github.com/appliedgrg/beratools
+repo_url: https://github.com/BERATool/beratools
 repo_name: BERA Tools
 edit_uri: edit/main/docs/files/
 
@@ -141,4 +141,3 @@ plugins:
             - url: https://shapely.readthedocs.io/en/stable/objects.inv
             - url: https://numpy.org/doc/stable/objects.inv
             - url: https://pandas.pydata.org/pandas-docs/stable/objects.inv
-

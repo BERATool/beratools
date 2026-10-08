@@ -8,7 +8,7 @@ Author: Richard Zeng, Maverick Fong
 
 Description:
     This script is part of the BERA Tools.
-    Webpage: https://github.com/appliedgrg/beratools
+    Webpage: https://github.com/BERATool/beratools
 
     This file hosts code to deal with line grouping and merging, cleanups.
 """

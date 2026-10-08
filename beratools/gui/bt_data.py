@@ -8,7 +8,7 @@ Author: Richard Zeng
 
 Description:
     This script is part of the BERA Tools.
-    Webpage: https://github.com/appliedgrg/beratools
+    Webpage: https://github.com/BERATool/beratools
 
     The purpose of this script is to provide main interface for GUI related settings.
 """
@@ -36,7 +36,7 @@ from beratools.utility.spatial_common import decode_file_layer
 from beratools.utility.tool_args import CallMode, determine_cpu_core_limit
 
 BT_SHOW_ADVANCED_OPTIONS = False
-GLOBAL_DOCS_URL = "https://appliedgrg.github.io/beratools/"
+GLOBAL_DOCS_URL = "https://beratool.github.io/beratools/"
 _LOG = logging.getLogger(__name__)
 
 

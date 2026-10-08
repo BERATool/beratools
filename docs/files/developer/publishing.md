@@ -18,9 +18,9 @@ BERA Tools is packaged for distribution on both PyPI and Anaconda. PyPI publishi
 
 See the following workflows:
 
-- Conda Packaging and Release: [publish_to_anaconda.yml](https://github.com/appliedgrg/beratools/blob/main/.github/workflows/publish_to_anaconda.yml)
-- PyPI Packaging and Release: [publish_to_pypi.yml](https://github.com/appliedgrg/beratools/blob/main/.github/workflows/publish_to_pypi.yml)
-- Windows Installer Build and Signing: [build-win-installer.yml](https://github.com/appliedgrg/beratools/blob/main/.github/workflows/build-win-installer.yml)
+- Conda Packaging and Release: [publish_to_anaconda.yml](https://github.com/BERATool/beratools/blob/main/.github/workflows/publish_to_anaconda.yml)
+- PyPI Packaging and Release: [publish_to_pypi.yml](https://github.com/BERATool/beratools/blob/main/.github/workflows/publish_to_pypi.yml)
+- Windows Installer Build and Signing: [build-win-installer.yml](https://github.com/BERATool/beratools/blob/main/.github/workflows/build-win-installer.yml)
 
 See the workflow inventory in the [Maintainer Guide](maintainer.md#actions).
 
@@ -32,7 +32,7 @@ Before rerunning, confirm that the version has no files on PyPI. If PyPI accepte
 
 ### Anaconda Publication
 
-Open [Publish to Anaconda](https://github.com/appliedgrg/beratools/actions/workflows/publish_to_anaconda.yml) and select **Run workflow**. Leaving **Version tag to publish** empty runs a non-publishing build and smoke test of the selected branch. The resulting Conda package is attached to the workflow run as an artifact, including when smoke validation fails.
+Open [Publish to Anaconda](https://github.com/BERATool/beratools/actions/workflows/publish_to_anaconda.yml) and select **Run workflow**. Leaving **Version tag to publish** empty runs a non-publishing build and smoke test of the selected branch. The resulting Conda package is attached to the workflow run as an artifact, including when smoke validation fails.
 
 For an Anaconda release:
 
@@ -48,7 +48,7 @@ If `main` advances after a failed publication, fix the release issue and create 
 
 ## Windows Installer Signing
 
-Official Windows installers follow the project [Code signing policy](https://github.com/appliedgrg/beratools/blob/main/CODE_SIGNING_POLICY.md). Test and release signing use the same SignPath artifact configuration so a manual test validates the artifact that will later be released.
+Official Windows installers follow the project [Code signing policy](https://github.com/BERATool/beratools/blob/main/CODE_SIGNING_POLICY.md). Test and release signing use the same SignPath artifact configuration so a manual test validates the artifact that will later be released.
 
 | Trigger | Signing policy | Approval | Result |
 | --- | --- | --- | --- |
@@ -59,7 +59,7 @@ Official Windows installers follow the project [Code signing policy](https://git
 
 Run a test after changing the installer, its build script, the signing workflow, or the SignPath artifact configuration.
 
-1. Open [Build Windows Installer](https://github.com/appliedgrg/beratools/actions/workflows/build-win-installer.yml) in GitHub Actions.
+1. Open [Build Windows Installer](https://github.com/BERATool/beratools/actions/workflows/build-win-installer.yml) in GitHub Actions.
 2. Select **Run workflow** and choose the branch to test.
 3. Wait for the `Submit installer to SignPath` step to complete using `test-signing`.
 4. Confirm the run contains both `beratools-installer-unsigned` and `beratools-installer-signed` artifacts.
@@ -71,7 +71,7 @@ The test certificate is self-signed, so `Get-AuthenticodeSignature` may report `
 
 1. Merge the release changes into `main` and ensure all release workflows are ready.
 2. Create a `major.minor.patch` version tag on the current `main` commit and push the tag. Do not advance `main` until all release workflows complete.
-3. Open [Build Windows Installer](https://github.com/appliedgrg/beratools/actions/workflows/build-win-installer.yml), select **Run workflow**, choose `main`, and enter the version tag in **Version tag to release**.
+3. Open [Build Windows Installer](https://github.com/BERATool/beratools/actions/workflows/build-win-installer.yml), select **Run workflow**, choose `main`, and enter the version tag in **Version tag to release**.
 4. Confirm the workflow verifies that the supplied tag points exactly to the dispatched `main` commit, is the latest numeric version tag, and submits with `release-signing`.
 5. Open the signing request from the SignPath email or the URL printed by the workflow.
 6. An authorized SignPath approver must approve the request within the workflow's one-hour timeout.

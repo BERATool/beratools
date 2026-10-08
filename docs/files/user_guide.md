@@ -11,7 +11,7 @@ $ beratools
 
 Start working with BERA Tools using example data.
 
-[Download latest example data](https://github.com/appliedgrg/beratools/releases/latest/download/test_data.zip)
+[Download latest example data](https://github.com/BERATool/beratools/releases/latest/download/test_data.zip)
 
 ## Main GUI
 

@@ -8,7 +8,7 @@ Author: Richard Zeng
 
 Description:
     This script is part of the BERA Tools.
-    Webpage: https://github.com/appliedgrg/beratools
+    Webpage: https://github.com/BERATool/beratools
 
     The purpose of this script is to move line vertices to the right
     seismic line courses for improved alignment and analysis in

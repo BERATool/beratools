@@ -10,7 +10,7 @@
           "tool_type": "python",
           "tool_api": "check_seed_line",
           "icon": "check_seed_line.gif",
-          "tech_link": "https://appliedgrg.github.io/beratools/user/check_seed_line",
+          "tech_link": "https://beratool.github.io/beratools/user/check_seed_line",
           "parameters": [
             {
               "variable": "in_line",
@@ -332,7 +332,7 @@
           "tool_type": "python",
           "tool_api": "vertex_optimization",
           "icon": "vertex_optimization.gif",
-          "tech_link": "https://appliedgrg.github.io/beratools/user/vertex_optimization",
+          "tech_link": "https://beratool.github.io/beratools/user/vertex_optimization",
           "parameters": [
             {
               "variable": "in_line",
@@ -403,7 +403,7 @@
           "tool_type": "python",
           "tool_api": "centerline",
           "icon": "centerline.gif",
-          "tech_link": "https://appliedgrg.github.io/beratools/user/centerline",
+          "tech_link": "https://beratool.github.io/beratools/user/centerline",
           "parameters": [
             {
               "variable": "in_line",
@@ -683,7 +683,7 @@
           "tool_type": "python",
           "tool_api": "canopy_footprint_absolute",
           "icon": "canopy_footprint_absolute.gif",
-          "tech_link": "https://appliedgrg.github.io/beratools/user/canopy_footprint_abs",
+          "tech_link": "https://beratool.github.io/beratools/user/canopy_footprint_abs",
           "parameters": [
             {
               "variable": "in_line",
@@ -895,7 +895,7 @@
           "tool_type": "python",
           "tool_api": "line_footprint_relative",
           "icon": "line_footprint_relative.gif",
-          "tech_link": "https://appliedgrg.github.io/beratools/user/canopy_footprint_rel/",
+          "tech_link": "https://beratool.github.io/beratools/user/canopy_footprint_rel/",
           "parameters": [
             {
               "variable": "in_line",
@@ -1036,7 +1036,7 @@
           "tool_type": "python",
           "tool_api": "ground_footprint",
           "icon": "ground_footprint.gif",
-          "tech_link": "https://appliedgrg.github.io/beratools/user/ground_footprint",
+          "tech_link": "https://beratool.github.io/beratools/user/ground_footprint",
           "parameters": [
             {
               "variable": "in_line",
@@ -1113,7 +1113,7 @@
           "tool_type": "python",
           "tool_api": "tool_template",
           "icon": "tool_template.gif",
-          "tech_link": "https://appliedgrg.github.io/beratools/developer/tool_template/",
+          "tech_link": "https://beratool.github.io/beratools/developer/tool_template/",
           "parameters": [
             {
               "variable": "in_feature",

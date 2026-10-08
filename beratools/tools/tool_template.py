@@ -16,7 +16,7 @@ Description:
     To integrate with GUI, work in the gui/assets/beratools.json is needed.
     Please see developer's guide for more details.
 
-    Webpage: https://github.com/appliedgrg/beratools
+    Webpage: https://github.com/BERATool/beratools
 
     The purpose of this script is to provide template for tool.
 """

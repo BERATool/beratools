@@ -181,7 +181,7 @@ jobs:
           files: packaging/dist-signed/beratools-installer-*.exe
           overwrite_files: false
           body: |
-            Windows installer signed under the [BERA Tools Code signing policy](https://github.com/appliedgrg/beratools/blob/main/CODE_SIGNING_POLICY.md).
+            Windows installer signed under the [BERA Tools Code signing policy](https://github.com/BERATool/beratools/blob/main/CODE_SIGNING_POLICY.md).
           append_body: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

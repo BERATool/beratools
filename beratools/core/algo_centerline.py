@@ -8,7 +8,7 @@ Author: Richard Zeng
 
 Description:
     This script is part of the BERA Tools.
-    Webpage: https://github.com/appliedgrg/beratools
+    Webpage: https://github.com/BERATool/beratools
 
     This file is intended to be hosting algorithms and utility functions/classes
     for centerline tool.
