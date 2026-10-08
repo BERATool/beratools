@@ -4,8 +4,8 @@ BERA Tools is successor of [Forest Line Mapper](https://github.com/appliedgrg/fl
 
 <div align="center">
 
-[![Python Integration Tests](https://img.shields.io/github/actions/workflow/status/appliedgrg/beratools/python-integration-tests.yml?branch=main)](https://github.com/appliedgrg/beratools/actions/workflows/python-integration-tests.yml)
-[![GitHub Pages](https://img.shields.io/github/deployments/appliedgrg/beratools/github-pages?label=docs)](https://appliedgrg.github.io/beratools/)
+[![Python Integration Tests](https://img.shields.io/github/actions/workflow/status/BERATool/beratools/python-integration-tests.yml?branch=main)](https://github.com/BERATool/beratools/actions/workflows/python-integration-tests.yml)
+[![GitHub Pages](https://img.shields.io/github/deployments/BERATool/beratools/github-pages?label=docs)](https://beratool.github.io/beratools/)
 [![Conda Version](https://img.shields.io/conda/v/AppliedGRG/beratools)](https://anaconda.org/AppliedGRG/beratools)
 [![PyPI](https://img.shields.io/pypi/v/BERATools)](https://pypi.org/project/BERATools/)
 [![Python Version](https://img.shields.io/badge/python-3.12--3.14-blue)](https://www.python.org/downloads/)
@@ -13,7 +13,7 @@ BERA Tools is successor of [Forest Line Mapper](https://github.com/appliedgrg/fl
 
 </div>
 
-## [Quick Start](https://appliedgrg.github.io/beratools)
+## [Quick Start](https://beratool.github.io/beratools/)
 
 Here are the ways to install BERA Tools:
 
@@ -22,15 +22,14 @@ Here are the ways to install BERA Tools:
 
 ### Windows Installer
 
-Windows installer is provided with releases. Check the [latest release](https://github.com/appliedgrg/beratools/releases/latest). Official Windows installers are signed under the BERA Tools [Code signing policy](CODE_SIGNING_POLICY.md).
+Windows installer is provided with releases. Check the [latest release](https://github.com/BERATool/beratools/releases/latest). Official Windows installers are signed under the BERA Tools [Code signing policy](CODE_SIGNING_POLICY.md).
 
 ### Install with Anaconda
 
 Install with Anaconda works on Windows, macOS, and Linux.
 
 - Install Miniconda. Download Miniconda from [Miniconda](https://docs.anaconda.com/miniconda/) and install on your machine.
-- Download and save the file [environment.yml](https://raw.githubusercontent.com/appliedgrg/beratools/main/environment.yml
-).
+- Download and save the file [environment.yml](https://raw.githubusercontent.com/BERATool/beratools/main/environment.yml).
 - Launch **Anaconda Prompt** and **Change directory** to where environment.yml is saved.
 - Run the command to install BERA Tools.
 
@@ -48,13 +47,13 @@ Install with Anaconda works on Windows, macOS, and Linux.
 
 ![BERA Tools Main GUI](beratools/gui/assets/BERA_GUI_Main.png)
 
-- [Download latest example data](https://github.com/appliedgrg/beratools/releases/latest/download/test_data.zip) to try with BERA Tools.
+- [Download latest example data](https://github.com/BERATool/beratools/releases/latest/download/test_data.zip) to try with BERA Tools.
 
-For more information about installation, check the [BERA Tools Installation](https://appliedgrg.github.io/beratools/user/installation/).
+For more information about installation, check the [BERA Tools Installation](https://beratool.github.io/beratools/user/installation/).
 
 ## BERA Tools Guide
 
-Check the online [BERA Tools Guide](https://appliedgrg.github.io/beratools/) for user, developer and technical guides.
+Check the online [BERA Tools Guide](https://beratool.github.io/beratools/) for user, developer and technical guides.
 
 ## Sponsors
 
@@ -75,7 +74,7 @@ Check the online [BERA Tools Guide](https://appliedgrg.github.io/beratools/) for
 
 <table>
   <tr>
-    <td><img src="https://github.com/appliedgrg/beratools/raw/main/docs/files/icons/bera_logo.png" alt="Logos" width="80"></td>
+    <td><img src="https://github.com/BERATool/beratools/raw/main/docs/files/icons/bera_logo.png" alt="Logos" width="80"></td>
     <td>
       <p>
         This tool is part of the <strong><a href="http://www.beraproject.org/">Boreal Ecosystem Recovery & Assessment (BERA)</a></strong>.

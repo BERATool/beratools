@@ -4,7 +4,7 @@ This document outlines the development standards and practices for contributing 
 
 ## Coding Standards
 
-When writing code, follow [PEP8](https://peps.python.org/pep-0008/) (style guide) and [PEP257](https://peps.python.org/pep-0257/) (docstring conventions) guidelines. This project uses [`ruff`](https://github.com/appliedgrg/beratools/blob/main/pyproject.toml:83) for linting and [`mypy`](https://github.com/appliedgrg/beratools/blob/main/pyproject.toml:120) for type checking, as configured in [`pyproject.toml`](https://github.com/appliedgrg/beratools/blob/main/pyproject.toml). Some rules are ignored or customized; see the configuration for details. When in doubt, match the formatting of existing code.
+When writing code, follow [PEP8](https://peps.python.org/pep-0008/) (style guide) and [PEP257](https://peps.python.org/pep-0257/) (docstring conventions) guidelines. This project uses [`ruff`](https://github.com/BERATool/beratools/blob/main/pyproject.toml#L97) for linting and [`mypy`](https://github.com/BERATool/beratools/blob/main/pyproject.toml#L134) for type checking, as configured in [`pyproject.toml`](https://github.com/BERATool/beratools/blob/main/pyproject.toml). Some rules are ignored or customized; see the configuration for details. When in doubt, match the formatting of existing code.
 
 ### PEP8 Summary
 

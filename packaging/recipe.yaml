@@ -65,7 +65,7 @@ about:
   license: GPL-3.0-or-later
   license_file:
     - LICENSE
-  homepage: https://github.com/appliedgrg/beratools.git
+  homepage: https://github.com/BERATool/beratools.git
 
 extra:
   recipe-maintainers:

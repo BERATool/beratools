@@ -73,7 +73,7 @@ bt = "beratools.cli.entry:run"
 beratools = "beratools.cli.entry:run"
 
 [project.urls]
-Homepage = "https://github.com/appliedgrg/beratools"
+Homepage = "https://github.com/BERATool/beratools"
 
 [tool.beratools]
 gdal_url = "https://github.com/cgohlke/geospatial-wheels/releases/download/v2026.2.26/gdal-3.12.2-cp312-cp312-win_amd64.whl"

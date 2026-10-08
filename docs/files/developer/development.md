@@ -12,7 +12,7 @@ These are guidelines for developers of BERA Tools. It covers local development s
 ## Clone the repository
 
 ```bash
-    $ git clone https://github.com/appliedgrg/beratools.git
+    $ git clone https://github.com/BERATool/beratools.git
 ```
 
 ## Branching or Forking
@@ -43,14 +43,14 @@ A manual conda environment setup for local development (without using environmen
    conda install -c conda-forge dask "gdal>=3.12,<4" geopandas networkit "pyogrio>=0.12.0" pyqt "rasterio>=1.5.0" "scikit-image>=0.24.0" tqdm xarray-spatial
    ```
 
-This approach avoids installing the released beratools package and uses only the dependencies listed in [`environment.yml`](https://github.com/appliedgrg/beratools/blob/main/environment.yml).
+This approach avoids installing the released beratools package and uses only the dependencies listed in [`environment.yml`](https://github.com/BERATool/beratools/blob/main/environment.yml).
 
 ### Install local code in editable mode
 
 Activate your conda or pixi environment, then run:
 
    ```bash
-    $ git clone https://github.com/appliedgrg/beratools.git
+    $ git clone https://github.com/BERATool/beratools.git
     $ cd beratools
     $ pip install -e .
     $ beratools  # This should start main GUI
@@ -113,7 +113,7 @@ Best practices when using long-lived branches:
 
 ### Using Pixi (advanced)
 
-Pixi is the easiest way to set up a consistent development environment for BERA Tools. The configuration is defined in [`pixi.toml`](https://github.com/appliedgrg/beratools/blob/main/pixi.toml).
+Pixi is the easiest way to set up a consistent development environment for BERA Tools. The configuration is defined in [`pixi.toml`](https://github.com/BERATool/beratools/blob/main/pixi.toml).
 
 1. **Install pixi**
 
@@ -124,7 +124,7 @@ Pixi is the easiest way to set up a consistent development environment for BERA 
     In the project root, run the command to setup all dependencies as specified in `pixi.toml`.
 
     ```bash
-    git clone https://github.com/appliedgrg/beratools.git
+    git clone https://github.com/BERATool/beratools.git
     pixi install  # Run this command inside the beratools project root
     ```
 
@@ -138,7 +138,7 @@ Pixi is the easiest way to set up a consistent development environment for BERA 
 
     To update dependencies, re-run the `pixi install` again. Pixi will detect changes in pixi.toml and install or update packages accordingly.
 
-    For more details, review the dependencies and tasks in [`pixi.toml`](https://github.com/appliedgrg/beratools/blob/main/pixi.toml).
+    For more details, review the dependencies and tasks in [`pixi.toml`](https://github.com/BERATool/beratools/blob/main/pixi.toml).
 
 ### GitHub Flow
 
@@ -201,7 +201,7 @@ Recommend IDEs like VSCode or PyCharm that have built-in support for Git and can
 
 ### pyproject.toml
 
-[pyproject.toml](https://github.com/appliedgrg/beratools/blob/main/pyproject.toml) is the core configuration file used to define the build system, dependencies, and other settings for BERA Tools. Other settings include Ruff, mypy, pytest, markdownlint.
+[pyproject.toml](https://github.com/BERATool/beratools/blob/main/pyproject.toml) is the core configuration file used to define the build system, dependencies, and other settings for BERA Tools. Other settings include Ruff, mypy, pytest, markdownlint.
 
 #### pyproject.toml Functional Groups
 

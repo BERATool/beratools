@@ -15,7 +15,7 @@ This tool is part of the [**Boreal Ecosystem Recovery and Assessment (BERA)**](h
 
 ## Code signing policy
 
-Official BERA Tools Windows installers are signed according to the project [Code signing policy](https://github.com/appliedgrg/beratools/blob/main/CODE_SIGNING_POLICY.md).
+Official BERA Tools Windows installers are signed according to the project [Code signing policy](https://github.com/BERATool/beratools/blob/main/CODE_SIGNING_POLICY.md).
 
 ### Cite Us
 
@@ -24,7 +24,7 @@ If you use BERA Tools for a publication, please cite it as:
     @misc{BERA Tools,
       author = "Applied Geospatial Research Group",
       title = "Forest Line Mapper",
-      howpublished = "\url{https://github.com/appliedgrg/BERATools}",
+      howpublished = "\url{https://github.com/BERATool/beratools}",
     }
 
 ## Credits

@@ -7,8 +7,8 @@
 AppName=BERA Tools
 AppPublisher=Applied Geospatial Research Group
 AppPublisherURL=https://www.appliedgrg.ca/
-AppSupportURL=https://github.com/appliedgrg/beratools/issues
-AppUpdatesURL=https://github.com/appliedgrg/beratools/releases/latest
+AppSupportURL=https://github.com/BERATool/beratools/issues
+AppUpdatesURL=https://github.com/BERATool/beratools/releases/latest
 WizardImageFile=..\beratools\gui\assets\BERA_WizardImage.png
 AppVersion={#MyAppVersion}
 VersionInfoVersion={#MyAppVersion}
