@@ -22,7 +22,7 @@ Here are the ways to install BERA Tools:
 
 ### Windows Installer
 
-Windows installer is provided with releases. Check the [latest release](https://github.com/BERATool/beratools/releases/latest). Official Windows installers are signed under the BERA Tools [Code signing policy](CODE_SIGNING_POLICY.md).
+Windows installer is provided with releases. Check the [latest release](https://github.com/BERATool/beratools/releases/latest). Signing is currently off by default; unsigned assets are named `beratools-installer-x.y.z-unsigned.exe` and identified as unsigned in the release notes. Windows may display an unknown-publisher or SmartScreen warning. Maintainers can enable SignPath per run according to the BERA Tools [Code signing policy](CODE_SIGNING_POLICY.md).
 
 ### Install with Anaconda
 

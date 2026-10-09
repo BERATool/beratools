@@ -44,6 +44,7 @@ requirements:
     - tqdm
     - xarray-spatial
     - pandarallel
+    - python-igraph
 tests:
   - script:
       - pytest tests/test_workflow.py
@@ -59,6 +60,7 @@ tests:
   - python:
       imports:
         - beratools
+        - igraph
 
 about:
   summary: An advanced forest line feature analysis platform

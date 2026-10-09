@@ -1,9 +1,18 @@
 name: Publish to PyPI
 
+run-name: PyPI ${{ inputs.release_tag || 'dry run' }} from ${{ github.ref_name }}
+
 on:
-  push:
-    tags:
-      - '*.*.*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Version tag to publish (leave empty for dry run)"
+        required: false
+        type: string
+
+concurrency:
+  group: pypi-${{ inputs.release_tag || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   pypi:
@@ -16,31 +25,98 @@ jobs:
         uses: actions/checkout@v6
         with:
           token: ${{ github.token }}
-          persist-credentials: true
-      - name: Check if tagged commit is on main
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Validate release tag
         id: tag_guard
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
-          commit_sha="${GITHUB_SHA:-$(git rev-parse HEAD)}"
-          git fetch origin main
-          if git branch -r --contains "$commit_sha" | grep -q 'origin/main'; then
-            echo "on_main=true" >> "$GITHUB_OUTPUT"
-            echo "✅ Tag commit is on main. Proceeding with publish steps."
-          else
-            echo "on_main=false" >> "$GITHUB_OUTPUT"
-            echo "⏭️ Tag commit is not on main. All publish steps will be skipped."
+          release_tag="$INPUT_RELEASE_TAG"
+          publish=false
+          reason="No release tag supplied."
+          git fetch origin main --tags
+
+          if [[ -n "$release_tag" ]]; then
+            if [[ ! "$release_tag" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "Release tag must be a numeric version such as 1.2.3: $release_tag" >&2
+              exit 1
+            fi
+
+            if ! tag_commit="$(git rev-parse "refs/tags/$release_tag^{commit}")"; then
+              echo "Release tag does not exist: $release_tag" >&2
+              exit 1
+            fi
+
+            latest_tag="$(git tag --list | grep -E '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' | sort -V | tail -n 1)"
+            workflow_commit="$(git rev-parse "$GITHUB_SHA^{commit}")"
+
+            if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+              reason="Publishing requires a workflow dispatched from main."
+            elif [[ "$tag_commit" != "$workflow_commit" ]]; then
+              reason="Tag $release_tag does not point to the selected main commit."
+            elif [[ "$release_tag" != "$latest_tag" ]]; then
+              reason="Tag $release_tag is not the latest numeric tag ($latest_tag)."
+            else
+              publish=true
+              reason="Tag $release_tag exactly matches the current main commit and is latest."
+              git checkout --detach "$tag_commit"
+              echo "SETUPTOOLS_SCM_PRETEND_VERSION=$release_tag" >> "$GITHUB_ENV"
+            fi
           fi
+
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+
+          if [[ "$publish" == "true" ]]; then
+            echo "$reason"
+          else
+            echo "::warning title=PyPI dry run::$reason Continuing without publishing."
+          fi
+
+          {
+            echo "### PyPI workflow mode"
+            echo "- Selected ref: \`$GITHUB_REF\`"
+            echo "- Release tag: \`${release_tag:-none}\`"
+            echo "- Publish: \`$publish\`"
+            echo "- Reason: $reason"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Set up Python
-        if: steps.tag_guard.outputs.on_main == 'true'
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - name: Install build tools
-        if: steps.tag_guard.outputs.on_main == 'true'
         run: pip install build twine hatch-vcs
       - name: Build package
-        if: steps.tag_guard.outputs.on_main == 'true'
         run: python -m build
+      - name: Check package metadata
+        run: python -m twine check --strict dist/*
+      - name: Verify release package version
+        if: steps.tag_guard.outputs.publish == 'true'
+        env:
+          RELEASE_TAG: ${{ steps.tag_guard.outputs.release_tag }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from packaging.utils import parse_sdist_filename, parse_wheel_filename
+          from packaging.version import Version
+
+          expected = Version(os.environ["RELEASE_TAG"])
+          for pattern, parse in (("*.whl", parse_wheel_filename), ("*.tar.gz", parse_sdist_filename)):
+              files = list(Path("dist").glob(pattern))
+              assert len(files) == 1, f"Expected one {pattern} package, found {files}"
+              assert parse(files[0].name)[1] == expected, f"Package version does not match {expected}: {files[0]}"
+          PY
       - name: Publish to PyPI
-        if: steps.tag_guard.outputs.on_main == 'true'
+        if: steps.tag_guard.outputs.publish == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Upload dry-run packages
+        if: always() && steps.tag_guard.outputs.publish == 'false'
+        uses: actions/upload-artifact@v7
+        with:
+          name: beratools-pypi-dry-run
+          path: dist/*
+          if-no-files-found: warn
