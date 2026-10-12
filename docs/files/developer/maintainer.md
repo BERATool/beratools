@@ -35,6 +35,7 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - Summary: Zensical validation and deployment workflow for documentation inputs.
     - Trigger: On pull requests and pushes to `main` affecting documentation, its dependencies, or the workflow.
     - Builds with Zensical and deploys the generated artifact to GitHub Pages on pushes.
+    - Builds once per run; only the deployment job has Pages write and OIDC permissions. Pixi configuration changes also trigger a rebuild.
 
 ### Automatic integration tests
 
@@ -42,6 +43,7 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - Summary: Workflow integration tests using Pixi and pytest.
     - Trigger: On pushes to `main` and qualifying pull requests targeting `main` when application, test, Pixi/project configuration, or workflow files change.
     - Runs `tests/test_workflow.py` in the Pixi-managed Python 3.12 environment with terminal coverage reporting.
+    - Tests the push commit or PR test-merge commit using the Pixi setup action. The automatic job stays focused on the processing integration test and coverage reporting.
 
 ### Manual (workflow_dispatch)
 
@@ -49,29 +51,30 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - Summary: Manual Python compatibility grid using tox inside micromamba environments with conda-forge GDAL.
     - Trigger: Manually triggered via `workflow_dispatch`.
     - Runs `tests/test_workflow.py` through tox under Python 3.12, 3.13, and 3.14 without relying on Ubuntu apt GDAL.
+    - Installs Python graph bindings as `python-igraph` before the project's `--no-deps` installation. Run this matrix before releases or after dependency changes.
 
 - __build-win-installer.yml__
     - Summary: Builds the Windows installer in test or release mode, with signing currently off by default.
     - Trigger: Manually triggered via `workflow_dispatch` on the selected branch.
     - With signing enabled and no release tag, uses `test-signing` and uploads test-signed Actions artifacts without publishing a GitHub Release.
-    - With signing enabled and a release tag, requires `main`, verifies that the latest numeric tag points exactly to the dispatched commit, uses `release-signing`, and attaches the approved installer to that GitHub Release.
-    - **Skip SignPath** is checked by default. Unsigned Actions artifacts are retained; a validated latest release tag also publishes a `-unsigned.exe` asset with unsigned release notes. Uncheck it to enable signing. Signing failures do not activate this option automatically.
+    - With a release tag, requires dispatch from `main`, validates that the tag's commit belongs to that commit's history, and builds the tagged snapshot. Older tags are allowed.
+    - **Skip SignPath** is checked by default. Unsigned Actions artifacts are retained; a validated release tag also publishes a `-unsigned.exe` asset with unsigned release notes. Uncheck it to use `release-signing` and publish a verified signed installer. Signing failures do not activate this option automatically.
 
 - __publish_to_anaconda.yml__
     - Summary: Builds and smoke-tests Conda packages, publishes eligible releases to Anaconda.org, and attaches test data to GitHub Releases.
     - Trigger: Manually triggered via `workflow_dispatch` on the selected branch; pushing a version tag does not start this workflow.
     - With no release tag, runs a non-publishing build and smoke test and uploads the Conda package as an Actions artifact.
-    - With a release tag, publishes only from `main` when the latest numeric tag points exactly to the dispatched commit.
+    - With a release tag, requires dispatch from `main` and builds the tagged source and recipe, including older tags in `main`'s history. Invalid release requests fail before building.
 
 - __publish_to_pypi.yml__
     - Summary: Builds and checks PyPI distributions, then publishes eligible manually selected releases.
     - Trigger: Manually triggered via `workflow_dispatch`; pushing a version tag does not start this workflow.
     - With no release tag, checks distribution metadata and uploads the packages as a dry-run Actions artifact.
-    - With a release tag, publishes only from `main` when the latest numeric tag points exactly to the dispatched commit and both package versions match. A valid but ineligible tag becomes a dry run; malformed or missing tags fail validation.
+    - With a release tag, requires dispatch from `main`, builds the tagged snapshot, and verifies both distribution versions. Older tags in `main`'s history are accepted; invalid release requests fail rather than becoming dry runs.
 
 See [Publishing BERA Tools](publishing.md#windows-installer-signing) for the signing and release procedure.
 
-To check release guards locally without publishing, run `pixi run python tests/check_publish_workflows.py`. This executes the workflow's Bash and PowerShell scripts in a disposable Git repository and checks unsigned installer labeling. Bash and PowerShell 7 (`pwsh`) must be installed; on Windows, the check uses Git Bash.
+The three publishers use native `actions/checkout` with a qualified `refs/tags/...` reference when a tag is provided, or the triggering SHA for a blank input. Each workflow validates that selection with a short inline Bash step. Blank inputs disable publication; provided tags must be numeric, dispatched from `main`, and in that commit's history. Run summaries distinguish the source SHA from the workflow SHA. Release runs are serialized per tag and do not cancel an active upload or signing request.
 
 ### Configuration
 
@@ -103,17 +106,22 @@ flowchart LR
 
     CheckType -->|Manual trigger| Manual[Workflow Dispatch]
     Manual --> Compatibility[Python Compatibility Matrix]
-    Manual --> PackageMode{Eligible release tag on main?}
+    Manual --> PackageMode{Release tag supplied?}
     PackageMode -->|No| PackageDryRun[PyPI or Conda dry run artifact]
-    PackageMode -->|Yes| Anaconda[Conda publication]
-    PackageMode -->|Yes| PyPI[PyPI publication]
+    PackageMode -->|Yes| PackageTag{Main dispatch and tag in history?}
+    PackageTag -->|No| InvalidRelease[Validation failure]
+    PackageTag -->|Yes| PackageSource[Checkout tagged snapshot]
+    PackageSource --> Anaconda[Conda publication]
+    PackageSource --> PyPI[PyPI publication]
     Manual --> InstallerMode{Release tag supplied?}
     InstallerMode -->|No| InstallerTest[Windows Installer Test]
     InstallerTest --> TestSigning{Skip SignPath?}
     TestSigning -->|No| TestSign[SignPath test-signing]
     TestSign --> SignedTest[Signed Actions Artifact]
     TestSigning -->|Yes| UnsignedTest[Unsigned Actions Artifact]
-    InstallerMode -->|Yes, latest tag matches main| WindowsInstaller[Windows Installer Release]
+    InstallerMode -->|Yes| InstallerTag{Main dispatch and tag in history?}
+    InstallerTag -->|No| InvalidRelease
+    InstallerTag -->|Yes| WindowsInstaller[Build tagged Windows Installer]
     WindowsInstaller --> ReleaseSigning{Skip SignPath?}
     ReleaseSigning -->|No| SignPathApproval[SignPath Approval]
     SignPathApproval --> SignedRelease[Signed GitHub Release]
@@ -125,7 +133,7 @@ flowchart LR
     classDef rel fill:#e8f5e9,stroke:#2e7d32
     
     class Zensical,IntegrationPush push
-    class Compatibility,PackageMode,PackageDryRun,InstallerMode,InstallerTest,TestSigning,TestSign,SignedTest,UnsignedTest manual
+    class Compatibility,PackageMode,PackageTag,PackageSource,PackageDryRun,InstallerMode,InstallerTag,InstallerTest,TestSigning,TestSign,SignedTest,UnsignedTest,InvalidRelease manual
     class IntegrationPR pr
     class Anaconda,PyPI,WindowsInstaller,ReleaseSigning,SignPathApproval,SignedRelease,UnsignedRelease rel
 ```

@@ -1,6 +1,6 @@
 # Publishing BERA Tools
 
-PyPI, Conda, and Windows installer releases are manually dispatched from the tagged `main` commit. Pushing a version tag does not start publishing. Windows signing is currently off by default; uncheck **Skip SignPath** to enable it for a run.
+PyPI, Conda, and Windows installer releases are manually dispatched using the workflow on `main`, with a release tag selecting the source to build. Older tags are supported. Pushing a version tag does not start publishing. Windows signing is currently off by default; uncheck **Skip SignPath** to enable it for a run.
 
 ## Versioning
 
@@ -14,7 +14,7 @@ BERA Tools Versioning follows [PEP440](https://peps.python.org/pep-0440/): `majo
 
 ## Packaging BERA Tools
 
-BERA Tools is packaged for distribution on both PyPI and Anaconda. Both publishing workflows require an explicit manual run from the tagged `main` commit. Conda uses `python-igraph` for the Python bindings; the corresponding PyPI dependency is named `igraph`. Keep the Conda recipe, `environment.yml`, and `pixi.toml` consistent with this naming.
+BERA Tools is packaged for distribution on both PyPI and Anaconda. Conda uses `python-igraph` for the Python bindings; the corresponding PyPI dependency is named `igraph`. Keep the Conda recipe, `environment.yml`, `pixi.toml`, and compatibility workflow consistent with this naming.
 
 See the following workflows:
 
@@ -24,19 +24,35 @@ See the following workflows:
 
 See the workflow inventory in the [Maintainer Guide](maintainer.md#actions).
 
+### Shared Source Selection
+
+All three publishing workflows use native `actions/checkout` to select the input tag (`refs/tags/...`) or the triggering commit, followed by inline Bash validation before building:
+
+| Input | Source | Publication |
+| --- | --- | --- |
+| Empty release tag | Selected branch's commit when the run started | Actions artifacts only |
+| Existing numeric tag, dispatched from `main` | Exact commit of that tag, including older tags | Enabled after build checks pass |
+| Malformed or nonexistent tag, unmerged tag, or tag supplied from another branch | Validation fails before building | Disabled |
+
+A release tag must match `major.minor.patch` and its commit must be an ancestor of, or equal to, the `main` commit that launched the run. There is no latest-tag or exact-current-commit restriction. Tags are resolved to commit SHAs before checkout. Blank inputs never switch to a tag and never publish, even if the selected commit is tagged.
+
+The run summary records the mode, tag, source commit, and workflow commit. For an older release, the source SHA and workflow SHA will differ: the current workflow selects the source, then all application code, dependency declarations, recipes, packaging scripts, and processing tests come from the tag. Later changes to `main` do not change the selected source.
+
+Fixes to the workflow itself can be used by starting a new manual run from updated `main` with the same tag. Fixes to tagged source or packaging files require a new tag containing those fixes. For example, `0.5.4` predates the Conda `python-igraph` recipe fix; selecting it also selects that old recipe. Existing package files and installer release assets are not overwritten.
+
 ### PyPI Publication
 
 Open [Publish to PyPI](https://github.com/BERATool/beratools/actions/workflows/publish_to_pypi.yml) and select **Run workflow**. Leaving **Version tag to publish** empty builds and checks the wheel and source distribution without publishing. The distributions are attached to the run as `beratools-pypi-dry-run` when available.
 
 For a PyPI release:
 
-1. Merge the release changes into `main`.
-2. Optionally run the workflow without a version tag for a final dry run.
-3. Create and push a new `major.minor.patch` tag on that exact `main` commit.
-4. Dispatch the workflow from `main` and enter the new tag in **Version tag to publish**.
+1. Select an existing release tag in `main`'s history, or merge release changes and create a new `major.minor.patch` tag.
+2. Optionally run the workflow without a version tag to test the selected branch's current commit.
+3. Confirm the version has no files on PyPI.
+4. Dispatch the workflow from `main` and enter the chosen tag in **Version tag to publish**.
 5. Confirm metadata checks and version verification pass, then check the release on [PyPI](https://pypi.org/project/BERATools/).
 
-Publishing proceeds only when the tag is the latest numeric version and points exactly to the dispatched `main` commit. A valid tag supplied from another branch, a mismatched commit, or an older tag becomes a dry run; a malformed or nonexistent tag fails validation. Runs for the same release are serialized. Keep `main` at the tagged commit until all release workflows finish. If a workflow fix changes that commit, create a new version tag.
+Runs for the same release are serialized. Both the wheel and source distribution must match the requested tag version. Invalid release requests fail clearly rather than becoming dry runs; only an empty tag selects dry-run mode.
 
 #### PyPI Trusted Publisher
 
@@ -46,7 +62,7 @@ Under the existing BERATools project's **Publishing** settings on PyPI, register
 
 If `publish_to_pypi.yml` fails before PyPI accepts any distribution files, a maintainer with write access can open the original GitHub Actions run and select **Re-run jobs -> Re-run failed jobs**. GitHub rebuilds and republishes from the same dispatched commit, Git ref, inputs, and trusted-publishing identity. Workflow runs can be rerun for up to 30 days.
 
-Before rerunning, confirm that the version has no files on PyPI. If PyPI accepted any files before the failure, do not rerun blindly: distribution filenames are immutable and duplicate uploads fail. Inspect the release and publish a new patch version if the release is incomplete. A rerun uses the original run's workflow definition, so a defect in the workflow itself must be fixed before creating a new release tag. Recheck the latest tag before retrying; a newer tag makes an older release a dry run.
+Before rerunning, confirm that the version has no files on PyPI. If PyPI accepted any files before the failure, do not rerun blindly: distribution filenames are immutable and duplicate uploads fail. Inspect the release and publish a new patch version if the release is incomplete. A rerun uses the original run's workflow definition. To use a workflow-only fix, start a new manual run from updated `main` and supply the same tag. A newer tag or newer `main` commit does not prevent retrying an older tag in `main`'s history.
 
 ### Anaconda Publication
 
@@ -54,15 +70,13 @@ Open [Publish to Anaconda](https://github.com/BERATool/beratools/actions/workflo
 
 For an Anaconda release:
 
-1. Merge the release changes into `main`.
-2. Optionally dispatch the workflow from `main` without a version tag for a final dry run.
-3. Create and push the new `major.minor.patch` tag on that exact `main` commit.
-4. Dispatch the workflow from `main` again and enter the new tag in **Version tag to publish**.
+1. Select an existing release tag in `main`'s history, or merge release changes and create a new `major.minor.patch` tag.
+2. Optionally dispatch the workflow without a version tag to test the selected branch's current commit.
+3. Confirm the version is absent from Anaconda.
+4. Dispatch the workflow from `main` and enter the chosen tag in **Version tag to publish**.
 5. Confirm the build and smoke test pass and the package appears on [Anaconda BERA Tools](https://anaconda.org/appliedgrg/beratools).
 
-Pushing the tag does not trigger Anaconda publishing. Publishing proceeds only when the manually supplied tag is the latest numeric version tag and points exactly to the selected `main` commit. A valid tag supplied from another branch, a tag that does not match the selected commit, or an older tag automatically becomes a dry run; a malformed or nonexistent tag fails validation. Confirm that the version is absent from Anaconda before publishing because existing package files are never overwritten.
-
-If `main` advances after a failed publication, fix the release issue and create a new version tag on the updated commit. The workflow will not publish an older tag from a newer `main` commit.
+The workflow builds the tagged recipe, installs the resulting package into a separate smoke-test environment, checks its version and CLI, and runs the tagged processing integration test before uploading. The upload targets the existing AppliedGRG Anaconda account. A successful dry run uploads a GitHub Actions artifact, not an Anaconda package. Check the source summary for `release` mode and the **Upload to Anaconda.org** step for actual publication.
 
 ## Windows Installer Signing
 
@@ -71,9 +85,9 @@ Windows installers follow the project [Code signing policy](https://github.com/B
 | Trigger | Skip SignPath | Signing policy | Result |
 | --- | --- | --- | --- |
 | Manual dispatch with no release tag | Unchecked | `test-signing`, no approval | Test-signed Actions artifact only |
-| Manual dispatch from `main` with a matching latest release tag | Unchecked | `release-signing`, one approval | Signed artifact and GitHub Release |
+| Manual dispatch from `main` with a tag in its history | Unchecked | `release-signing`, one approval | Signed artifact and GitHub Release |
 | Manual dispatch with no release tag | Checked | None | Unsigned Actions artifact only |
-| Manual dispatch from `main` with a matching latest release tag | Checked | None | Unsigned artifact and GitHub Release |
+| Manual dispatch from `main` with a tag in its history | Checked | None | Unsigned artifact and GitHub Release |
 
 ### Manual Signing Test
 
@@ -89,10 +103,10 @@ The test certificate is self-signed, so `Get-AuthenticodeSignature` may report `
 
 ### Production Release
 
-1. Merge the release changes into `main` and ensure all release workflows are ready.
-2. Create a `major.minor.patch` version tag on the current `main` commit and push the tag. Do not advance `main` until all release workflows complete.
+1. Ensure the publishing workflow and SignPath configuration are ready.
+2. Select an existing numeric release tag in `main`'s history, or merge release changes and create a new tag.
 3. Open [Build Windows Installer](https://github.com/BERATool/beratools/actions/workflows/build-win-installer.yml), select **Run workflow**, choose `main`, enter the version tag in **Version tag to release**, and uncheck **Skip SignPath**.
-4. Confirm the workflow verifies that the supplied tag points exactly to the dispatched `main` commit, is the latest numeric version tag, and submits with `release-signing`.
+4. Confirm the source summary shows the chosen tag's SHA, the installer version matches the tag, and the workflow submits with `release-signing`.
 5. Open the signing request from the SignPath email or the URL printed by the workflow.
 6. An authorized SignPath approver must approve the request within the workflow's one-hour timeout.
 7. Confirm the release signature status is `Valid`.
@@ -105,7 +119,7 @@ The person who creates the tag does not need to be a SignPath approver. With mul
 While SignPath configuration is being updated, leave the default **Skip SignPath** selection checked when dispatching the installer workflow. This builds normally but skips SignPath submission, signature verification, and signed-artifact upload. A failed signing request never falls back to unsigned publishing automatically.
 
 - Leave the release tag empty for an unsigned Actions artifact only.
-- For a GitHub Release, dispatch from `main` with the latest numeric tag pointing exactly to that commit. The same tag validation applies even when signing is skipped.
+- For a GitHub Release, dispatch from `main` with an existing numeric tag in that commit's history. The same tag validation applies even when signing is skipped.
 - Download `beratools-installer-x.y.z-unsigned.exe` from the `beratools-installer-unsigned` artifact or the GitHub Release. Release notes explicitly identify it as unsigned. Windows may display an unknown-publisher or SmartScreen warning.
 - Uncheck **Skip SignPath** on a later run to resume signing. The signed filename is separate from the unsigned filename; existing assets are not overwritten.
 
@@ -128,7 +142,7 @@ Open **Projects -> beratools -> Signing policies** in SignPath to review policy 
 
 For `release-signing`, require trusted-build-system verification and origin verification. Set the repository URL to `https://github.com/appliedgrg/beratools.git`, the allowed branch to `main`, and the allowed build definition to `.github/workflows/build-win-installer.yml`.
 
-GitHub reports a tag-triggered workflow's tag name as its origin branch. Do not add version tags or wildcard patterns to the production policy's allowed branches. Release signing is dispatched from `main`, and the workflow verifies that the supplied tag resolves exactly to that `main` commit.
+Release signing is dispatched from `main`, while the source is checked out at the validated tag. SignPath obtains origin metadata from GitHub's run context. When enabling signing after the portal update, test an older-tag build and inspect the signing request's origin alongside the recorded source SHA and workflow SHA. Verify that the connector and signing policy accept the intended tagged source; do not assume the dispatched `main` SHA is the source SHA of an older release.
 
 Both policies use the default artifact configuration below. Only these artifact rules are shared; certificates, approval requirements, branch restrictions, and origin settings remain policy-specific.
 

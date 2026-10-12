@@ -17,76 +17,49 @@ concurrency:
 jobs:
   pypi:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       id-token: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
-          token: ${{ github.token }}
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
           persist-credentials: false
           fetch-depth: 0
-      - name: Validate release tag
-        id: tag_guard
-        env:
-          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
-        run: |
-          set -euo pipefail
-          release_tag="$INPUT_RELEASE_TAG"
-          publish=false
-          reason="No release tag supplied."
-          git fetch origin main --tags
-
-          if [[ -n "$release_tag" ]]; then
-            if [[ ! "$release_tag" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-              echo "Release tag must be a numeric version such as 1.2.3: $release_tag" >&2
-              exit 1
-            fi
-
-            if ! tag_commit="$(git rev-parse "refs/tags/$release_tag^{commit}")"; then
-              echo "Release tag does not exist: $release_tag" >&2
-              exit 1
-            fi
-
-            latest_tag="$(git tag --list | grep -E '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' | sort -V | tail -n 1)"
-            workflow_commit="$(git rev-parse "$GITHUB_SHA^{commit}")"
-
-            if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
-              reason="Publishing requires a workflow dispatched from main."
-            elif [[ "$tag_commit" != "$workflow_commit" ]]; then
-              reason="Tag $release_tag does not point to the selected main commit."
-            elif [[ "$release_tag" != "$latest_tag" ]]; then
-              reason="Tag $release_tag is not the latest numeric tag ($latest_tag)."
-            else
-              publish=true
-              reason="Tag $release_tag exactly matches the current main commit and is latest."
-              git checkout --detach "$tag_commit"
-              echo "SETUPTOOLS_SCM_PRETEND_VERSION=$release_tag" >> "$GITHUB_ENV"
-            fi
-          fi
-
-          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
-          echo "publish=$publish" >> "$GITHUB_OUTPUT"
-          echo "reason=$reason" >> "$GITHUB_OUTPUT"
-
-          if [[ "$publish" == "true" ]]; then
-            echo "$reason"
-          else
-            echo "::warning title=PyPI dry run::$reason Continuing without publishing."
-          fi
-
-          {
-            echo "### PyPI workflow mode"
-            echo "- Selected ref: \`$GITHUB_REF\`"
-            echo "- Release tag: \`${release_tag:-none}\`"
-            echo "- Publish: \`$publish\`"
-            echo "- Reason: $reason"
-          } >> "$GITHUB_STEP_SUMMARY"
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      - name: Validate publishing source
+        id: source
+        shell: bash
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          tag="$INPUT_RELEASE_TAG"
+          source_sha="$(git rev-parse HEAD)"
+          publish=false
+          mode=dry-run
+          if [[ -n "$tag" ]]; then
+            [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "Publishing must be dispatched from main." >&2; exit 1; }
+            [[ "$tag" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo "Release tag must be a numeric version such as 1.2.3." >&2; exit 1; }
+            git merge-base --is-ancestor "$source_sha" "$GITHUB_SHA" || { echo "Tag must belong to the dispatched main commit's history." >&2; exit 1; }
+            publish=true
+            mode=release
+          else
+            [[ "$source_sha" == "$GITHUB_SHA" ]] || { echo "Dry run must build the triggering commit." >&2; exit 1; }
+          fi
+          printf 'release_tag=%s\npublish=%s\n' "$tag" "$publish" >> "$GITHUB_OUTPUT"
+          printf '### Publishing source\n\n- Mode: `%s`\n- Tag: `%s`\n- Source commit: `%s`\n- Workflow commit: `%s`\n' \
+            "$mode" "${tag:-none}" "$source_sha" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - name: Set release version
+        if: steps.source.outputs.publish == 'true'
+        env:
+          RELEASE_TAG: ${{ steps.source.outputs.release_tag }}
+        run: echo "SETUPTOOLS_SCM_PRETEND_VERSION=$RELEASE_TAG" >> "$GITHUB_ENV"
       - name: Install build tools
         run: pip install build twine hatch-vcs
       - name: Build package
@@ -94,9 +67,9 @@ jobs:
       - name: Check package metadata
         run: python -m twine check --strict dist/*
       - name: Verify release package version
-        if: steps.tag_guard.outputs.publish == 'true'
+        if: steps.source.outputs.publish == 'true'
         env:
-          RELEASE_TAG: ${{ steps.tag_guard.outputs.release_tag }}
+          RELEASE_TAG: ${{ steps.source.outputs.release_tag }}
         run: |
           python - <<'PY'
           import os
@@ -111,10 +84,10 @@ jobs:
               assert parse(files[0].name)[1] == expected, f"Package version does not match {expected}: {files[0]}"
           PY
       - name: Publish to PyPI
-        if: steps.tag_guard.outputs.publish == 'true'
+        if: steps.source.outputs.publish == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
       - name: Upload dry-run packages
-        if: always() && steps.tag_guard.outputs.publish == 'false'
+        if: always() && steps.source.outputs.publish == 'false'
         uses: actions/upload-artifact@v7
         with:
           name: beratools-pypi-dry-run

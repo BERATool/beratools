@@ -68,6 +68,6 @@ Activate the development environment described in the [local development setup](
 
 The documentation is automatically validated and deployed to GitHub Pages using `.github/workflows/mkdocs-gh-pages.yml`.
 
-Pull requests that change documentation inputs run a Zensical build without deploying. Matching pushes to `main` build `docs/site`, upload it as a GitHub Pages artifact, and deploy it with GitHub's Pages action. The published site is available at `https://beratool.github.io/beratools/`.
+Pull requests that change documentation inputs run a Zensical build without deploying. Matching pushes to `main` build `docs/site` once, upload it as a GitHub Pages artifact, and deploy that artifact in a separate job with Pages permissions. The workflow uses the Pixi setup action and also watches `pixi.toml` and `pixi.lock` because they define the build environment. Superseded runs on the same PR or branch are cancelled. The published site is available at `https://beratool.github.io/beratools/`.
 
 ![Doc Deployment Config](../screenshots/gh_pages_config.png)
