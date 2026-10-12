@@ -9,7 +9,7 @@ Free code signing is provided by [SignPath.io](https://about.signpath.io/), cert
 
 ## Release process
 
-Official Windows installers are built by manually dispatching GitHub Actions from `main` with the latest numeric version tag pointing exactly to the dispatched commit. Signing is currently disabled by default: **Skip SignPath** (`skip_signing`) starts checked. Maintainers can uncheck it to enable signing for a run. When enabled, SignPath verifies the `main` build origin and requires an authorized approver to approve each `release-signing` request before a signed installer is published.
+Official Windows installers are built by manually dispatching GitHub Actions from `main` with an existing numeric release tag in that commit's history. Older tags are supported: the workflow resolves the tag to a commit and builds its source and packaging files. Run summaries record both the source and workflow commit SHAs. Signing is currently disabled by default: **Skip SignPath** (`skip_signing`) starts checked. Maintainers can uncheck it to enable signing for a run. When enabled, SignPath verifies the GitHub build origin and requires an authorized approver to approve each `release-signing` request before a signed installer is published.
 
 With signing enabled, manual GitHub Actions runs without a release tag use the `test-signing` policy, do not require signing approval, and do not use the release certificate. Release signing uses a separate policy that requires an authorized approver.
 
