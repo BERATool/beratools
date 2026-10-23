@@ -1,0 +1,4 @@
+zensical==0.0.53
+mkdocstrings
+mkdocstrings-python
+pymdown-extensions

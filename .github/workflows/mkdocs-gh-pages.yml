@@ -1,0 +1,65 @@
+name: Deploy Docs to GitHub Pages
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'pyproject.toml'
+      - 'pixi.toml'
+      - 'pixi.lock'
+      - '.github/workflows/mkdocs-gh-pages.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'pyproject.toml'
+      - 'pixi.toml'
+      - 'pixi.lock'
+      - '.github/workflows/mkdocs-gh-pages.yml'
+
+concurrency:
+  group: docs-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Pixi environment
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          cache: false
+      - name: Build docs site
+        run: pixi run zensical build -f docs/mkdocs.yml
+      - name: Upload Pages artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/site
+
+  deploy:
+    if: github.event_name == 'push'
+    needs: test-docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,74 @@
+schema_version: 1
+
+context:
+  name: BERATools
+  version: ${{ env.get("VERSION") }}
+
+package:
+  name: ${{ name|lower }}
+  version: ${{ version }}
+
+source:
+  path: ..
+  use_gitignore: true
+
+build:
+  number: 0
+  noarch: python
+  script: SETUPTOOLS_SCM_PRETEND_VERSION=${{ version }} python -m pip install . -vv --no-deps
+  python:
+    entry_points:
+      - bt = beratools.cli.entry:run
+      - beratools = beratools.cli.entry:run
+
+requirements:
+  host:
+    - python >=3.12,<3.15
+    - hatchling
+    - pip
+    - hatch-vcs
+    - git
+  run:
+    - python >=3.12,<3.15
+    - dask
+    - gdal >=3.12,<4
+    - geopandas
+    - networkit
+    - numpy >=1.26,<2.4
+    - pyarrow
+    - pyogrio
+    - pyqt
+    - rasterio
+    - scikit-image
+    - tabulate
+    - tqdm
+    - xarray-spatial
+    - pandarallel
+    - python-igraph
+tests:
+  - script:
+      - pytest tests/test_workflow.py
+    
+    files:
+      source:
+        - tests/
+
+    requirements:
+      run:
+        - pytest
+
+  - python:
+      imports:
+        - beratools
+        - igraph
+
+about:
+  summary: An advanced forest line feature analysis platform
+  license: GPL-3.0-or-later
+  license_file:
+    - LICENSE
+  homepage: https://github.com/BERATool/beratools.git
+
+extra:
+  recipe-maintainers:
+    - richard

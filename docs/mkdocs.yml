@@ -1,0 +1,145 @@
+# Zensical compatibility configuration. Build with `zensical`, not `mkdocs`.
+site_name: BERA Tools Guide
+
+theme:
+  name: material
+  repo_url: https://github.com/BERATool/beratools
+  repo_name: GitHub
+  palette:
+    - media: "(prefers-color-scheme)"
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-auto
+        name: "Switch to light mode"
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: "Switch to dark mode"
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: "Switch to system preference"
+
+  features:
+    - navigation.tabs          # top-level tabs in the header
+    - navigation.top           # keep nav in header
+    - content.code.copy        # optional niceties
+    - content.action.edit
+  font:
+    text: Inter
+    code: JetBrains Mono
+  favicon: icons/bera_logo.png
+  logo: icons/bera_logo.svg
+
+repo_url: https://github.com/BERATool/beratools
+repo_name: BERA Tools
+edit_uri: edit/main/docs/files/
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      
+extra_css:
+  - css/extra.css
+
+docs_dir: files
+watch:
+  - files
+
+# page tree
+nav:
+  - Home: 
+    - index.md
+    - overview.md
+  - User Guide: 
+    - user_guide.md
+    - user/installation.md
+    - Tools:
+      - user/check_seed_line.md
+      - user/vertex_optimization.md
+      - user/centerline.md
+      - user/canopy_footprint_abs.md
+      - user/canopy_footprint_rel.md
+      - user/ground_footprint.md
+  - Developer Guide:
+    - developer_guide.md
+    - developer/contributing.md
+    - developer/development.md
+    - developer/dev_standards.md
+    - developer/add_new_tool.md
+    - developer/tool_template.md
+    - developer/testing.md
+    - developer/documentation.md
+    - developer/maintainer.md
+    - developer/publishing.md
+  - Technical Guide:
+    - technical_guide.md
+    - technical/algorithm_overview.md
+    - Architecture:
+      - technical/architecture/system_overview.md
+      - technical/architecture/execution_pipeline.md
+      - technical/architecture/tool_runtime_model.md
+    - Algorithms:
+      - technical/algorithms/check_seed_line.md
+      - technical/algorithms/vertex_optimization.md
+      - technical/algorithms/centerline.md
+      - technical/algorithms/canopy_footprint_absolute.md
+      - technical/algorithms/canopy_footprint_relative.md
+      - technical/algorithms/ground_footprint.md
+  - API Reference: api.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [..]                    # read beratools from the repo root, no install needed
+          options:
+            # --- Docstring parsing ---
+            docstring_style: google
+            docstring_options:
+              ignore_init_summary: true  # don't duplicate __init__ summaries
+
+            # --- Visibility and member organization ---
+            filters: ["!^_"]             # exclude private members
+            members_order: source        # preserve code order
+            inherited_members: false     # avoid clutter unless needed
+
+            # --- Signature and linking ---
+            separate_signature: true
+            show_signature_annotations: true
+            signature_crossrefs: true
+            merge_init_into_class: true
+
+            # --- Page rendering ---
+            show_source: false
+            show_root_toc_entry: true
+
+          inventories:
+            - url: https://docs.python.org/3/objects.inv
+              domains: [py, std]
+            - url: https://typing-extensions.readthedocs.io/en/latest/objects.inv
+            - url: https://geopandas.org/en/stable/objects.inv
+            - url: https://shapely.readthedocs.io/en/stable/objects.inv
+            - url: https://numpy.org/doc/stable/objects.inv
+            - url: https://pandas.pydata.org/pandas-docs/stable/objects.inv

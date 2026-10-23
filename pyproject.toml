@@ -1,0 +1,168 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "BERATools"
+dynamic = ["version"]
+description = "An advanced forest line feature analysis platform"
+requires-python = ">=3.12,<3.15"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
+authors = [
+    { name = "AppliedGRG", email = "appliedgrg@gmail.com" },
+    { name = "Richard Zeng", email = "richardqzeng@gmail.com" },
+]
+
+keywords = ["BERA", "Line"]
+
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+
+dependencies = [
+    "gdal>=3.12,<4; platform_system != 'Windows'",
+    "geopandas",
+    "pandas>=2.0,<3",
+    "networkit",
+    "numpy>=1.26,<2.4",
+    "pyogrio>=0.12.0",
+    "PyQt5",
+    "rasterio>=1.5.0",
+    "scikit-image>=0.24.0",
+    "tabulate",
+    "tqdm",
+    "xarray-spatial",
+    "pandarallel",
+    "igraph",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-qt",
+    "ruff",
+    "isort",
+    "mypy",
+    "pre-commit",
+    "tox",
+    "build",
+    "twine"
+]
+test = [
+    "pytest",
+    "pytest-qt",
+    "pywinauto; platform_system == 'Windows'",
+]
+# Zensical consumes docs/mkdocs.yml through its supported compatibility layer.
+doc = [
+    "zensical==0.0.53",
+    "mkdocstrings",
+    "mkdocstrings-python",
+    "pymdown-extensions",
+]
+
+[project.scripts]
+bt = "beratools.cli.entry:run"
+beratools = "beratools.cli.entry:run"
+
+[project.urls]
+Homepage = "https://github.com/BERATool/beratools"
+
+[tool.beratools]
+gdal_url = "https://github.com/cgohlke/geospatial-wheels/releases/download/v2026.2.26/gdal-3.12.2-cp312-cp312-win_amd64.whl"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
+version_scheme = "post-release"
+
+[tool.hatch.build.targets.sdist]
+include = ["/beratools"]
+
+exclude = ["tests/*"]
+
+# ruff settings
+[tool.ruff]
+
+# Set maximum line length to 88 characters as per PEP 8
+line-length = 110
+
+# Select categories of checks to perform
+select = ["E", "F", "D", "I"]
+
+# Ignore specific error codes
+ignore = [
+    "W505",
+    "D102",
+    "E203",
+    "D212",
+    "D103",
+    "D107",
+    "D413",
+    "D417",
+    "E301",
+    "E302",
+    "E303",
+    "W292",
+    "W391",
+]
+
+# Exclude certain directories from linting (e.g., test and build directories)
+exclude = [
+    "dist/*",        # Ignore the build directory
+    "docs/*",        # Ignore documentation
+    "output/*",      # Ignore example code
+    "*/__init__.py", # Ignore init files, typically they are left empty
+]
+
+# Target Python version
+target-version = "py312"
+
+# mypy settings
+[tool.mypy]
+python_version = "3.12"
+
+ignore_missing_imports = true
+disallow_untyped_defs = false
+check_untyped_defs = false
+warn_return_any = false
+no_implicit_optional = true
+warn_unused_ignores = false
+
+[tool.coverage.run]
+source = ["beratools"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError"
+]
+
+[tool.pytest.ini_options]
+filterwarnings = ["ignore::DeprecationWarning"]
+log_level = "INFO"
+markers = [
+    "gui: Windows UIA GUI tests using pywinauto",
+    "gui_qt: Cross-platform GUI tests using pytest-qt",
+]
+
+[tool.markdownlint]
+disabled_rules = ["MD007"]

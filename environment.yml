@@ -1,0 +1,30 @@
+# run: conda env create -n bera -f environment.yml -q
+
+# name: bera
+channels:
+  - nodefaults
+  - conda-forge
+  - appliedgrg
+dependencies:
+  - python>=3.12,<3.14
+  - dask
+  - gdal>=3.12,<4
+  - geopandas
+  - pandas>=2.0,<3
+  - networkit
+  - numpy>=1.26,<2.4
+  - pandas
+  - pyogrio>=0.12
+  - pyqt
+  - rasterio>=1.5
+  - scikit-image>=0.24.0
+  - tqdm
+  - xarray-spatial
+  - pandarallel
+  - tabulate
+  - python-igraph
+  - psutil
+  - hydra-core
+  - pip
+variables:
+  {}

@@ -1,0 +1,961 @@
+import pytest
+from pathlib import Path
+import geopandas as gpd
+import pyproj
+from rasterio.transform import from_origin
+from shapely.geometry import LineString, Point, Polygon
+
+import beratools.core.algo_centerline as algo_centerline
+
+
+def _seed_gdf(seed):
+    # SeedLine.compute reads OLnFID/OLnSEG, which prepare_lines_gdf adds to real inputs
+    return gpd.GeoDataFrame({"OLnFID": [0], "OLnSEG": [0]}, geometry=[seed], crs="EPSG:3857")
+
+
+def _patch_raster_open(monkeypatch):
+    # The centerline tool opens the raster to read its cell size
+    class _FakeRaster:
+        transform = from_origin(0, 0, 1, 1)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    monkeypatch.setattr("beratools.tools.centerline.rasterio.open", lambda *_args, **_kwargs: _FakeRaster())
+
+
+def test_is_endpoint_anchored_detects_direct_and_reverse():
+    seed = LineString([(0, 0), (10, 0)])
+    direct = LineString([(0, 0), (3, 0), (10, 0)])
+    reverse = LineString([(10, 0), (4, 0), (0, 0)])
+    not_anchored = LineString([(1, 0), (9, 0)])
+
+    result = (algo_centerline._is_endpoint_anchored(direct, seed))
+    assert result.anchored
+    assert not result.reversed_match
+
+    result = (algo_centerline._is_endpoint_anchored(reverse, seed))
+    assert result.anchored
+    assert result.reversed_match
+
+    result = (algo_centerline._is_endpoint_anchored(not_anchored, seed))
+    assert not result.anchored
+
+
+def test_find_centerline_pairwise_forwards_guidance_and_skips_trim_snap(monkeypatch):
+    poly = Polygon([(-10, -10), (50, -10), (50, 10), (-10, 10), (-10, -10)])
+    seed = LineString([(0, 0), (40, 0)])
+    captured = {}
+
+    def fake_extract(_poly, src_geom, dst_geom, guided_strategy, *_args, **_kwargs):
+        captured["guided_strategy"] = guided_strategy
+        captured["src_geom"] = src_geom
+        captured["dst_geom"] = dst_geom
+        return LineString([(0, 0), (20, 0), (40, 0)])
+
+    trim_snap_calls = {"count": 0}
+
+    def fake_trim_and_snap(_centerline, _seed, max_snap_dist=None):
+        trim_snap_calls["count"] += 1
+        return _centerline
+
+    monkeypatch.setattr(algo_centerline, "_extract_centerline_from_polygon", fake_extract)
+    monkeypatch.setattr(algo_centerline, "_trim_and_snap_centerline", fake_trim_and_snap)
+    monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: True)
+
+    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="pairwise")
+
+    assert centerline.is_valid
+    assert status == algo_centerline.CenterlineStatus.SUCCESS
+    assert captured["guided_strategy"] == "pairwise"
+    assert captured["src_geom"] is not None
+    assert captured["dst_geom"] is not None
+    assert trim_snap_calls["count"] == 0
+
+
+def test_find_centerline_pairwise_uses_trim_snap_fallback_when_not_anchored(monkeypatch):
+    poly = Polygon([(-10, -10), (50, -10), (50, 10), (-10, 10), (-10, -10)])
+    seed = LineString([(0, 0), (40, 0)])
+
+    def fake_extract(_poly, _src_geom, _dst_geom, _guided_strategy, *_args, **_kwargs):
+        return LineString([(5, 0), (20, 0), (35, 0)])
+
+    trim_snap_calls = {"count": 0}
+
+    def fake_trim_and_snap(_centerline, _seed, max_snap_dist=None):
+        trim_snap_calls["count"] += 1
+        assert max_snap_dist == algo_centerline.CenterlineParams.GUIDED_FALLBACK_MAX_SNAP
+        return LineString([(0, 0), (20, 0), (40, 0)])
+
+    monkeypatch.setattr(algo_centerline, "_extract_centerline_from_polygon", fake_extract)
+    monkeypatch.setattr(algo_centerline, "_trim_and_snap_centerline", fake_trim_and_snap)
+    monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: True)
+
+    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="pairwise")
+
+    assert centerline.is_valid
+    assert status == algo_centerline.CenterlineStatus.SUCCESS
+    assert trim_snap_calls["count"] == 1
+
+
+def test_find_centerline_main_route_always_uses_trim_snap(monkeypatch):
+    poly = Polygon([(-10, -10), (50, -10), (50, 10), (-10, 10), (-10, -10)])
+    seed = LineString([(0, 0), (40, 0)])
+    captured = {}
+
+    def fake_extract(_poly, src_geom, dst_geom, guided_strategy, *_args, **_kwargs):
+        captured["guided_strategy"] = guided_strategy
+        captured["src_geom"] = src_geom
+        captured["dst_geom"] = dst_geom
+        return LineString([(0, 0), (20, 0), (40, 0)])
+
+    trim_snap_calls = {"count": 0}
+
+    def fake_trim_and_snap(_centerline, _seed, max_snap_dist=None):
+        trim_snap_calls["count"] += 1
+        assert max_snap_dist is None
+        return _centerline
+
+    monkeypatch.setattr(algo_centerline, "_extract_centerline_from_polygon", fake_extract)
+    monkeypatch.setattr(algo_centerline, "_trim_and_snap_centerline", fake_trim_and_snap)
+    monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: True)
+
+    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="main_route")
+
+    assert centerline is not None
+    assert centerline.is_valid
+    assert status == algo_centerline.CenterlineStatus.SUCCESS
+    assert captured["guided_strategy"] == "main_route"
+    assert captured["src_geom"] is None
+    assert captured["dst_geom"] is None
+    assert trim_snap_calls["count"] == 1
+
+
+def test_pairwise_retries_main_route_when_guided_extract_fails(monkeypatch):
+    poly = Polygon([(-10, -10), (50, -10), (50, 10), (-10, 10), (-10, -10)])
+    seed = LineString([(0, 0), (40, 0)])
+    calls = []
+
+    def fake_extract(_poly, _src_geom, _dst_geom, guided_strategy, *_args, **_kwargs):
+        calls.append(guided_strategy)
+        if guided_strategy != "main_route":
+            return None
+        return LineString([(0, 0), (20, 0), (40, 0)])
+
+    trim_snap_args = {"max_snap_dist": "unset", "count": 0}
+
+    def fake_trim(_centerline, _seed, max_snap_dist=None):
+        trim_snap_args["count"] += 1
+        trim_snap_args["max_snap_dist"] = max_snap_dist
+        return _centerline
+
+    monkeypatch.setattr(algo_centerline, "_extract_centerline_from_polygon", fake_extract)
+    monkeypatch.setattr(algo_centerline, "_trim_and_snap_centerline", fake_trim)
+    monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: True)
+
+    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="pairwise")
+    assert centerline is not None
+    assert centerline.is_valid
+    assert status == algo_centerline.CenterlineStatus.SUCCESS
+    assert calls == ["pairwise", "virtual_nodes", "direct_insert", "main_route"]
+    assert trim_snap_args["count"] == 1
+    assert trim_snap_args["max_snap_dist"] is None
+
+
+def test_find_centerline_returns_failed_when_regeneration_returns_none(monkeypatch):
+    poly = Polygon([(-10, -10), (50, -10), (50, 10), (-10, 10), (-10, -10)])
+    seed = LineString([(0, 0), (40, 0)])
+
+    monkeypatch.setattr(
+        algo_centerline,
+        "_extract_centerline_from_polygon",
+        lambda *_args, **_kwargs: LineString([(0, 0), (10, 10), (40, 0)]),
+    )
+    monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(algo_centerline, "regenerate_centerline", lambda *_args, **_kwargs: None)
+
+    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="pairwise")
+
+    assert centerline.equals(seed)
+    assert status == algo_centerline.CenterlineStatus.REGENERATE_FAILED
+
+
+def test_find_centerline_records_stabilized_qhull_success(monkeypatch):
+    poly = Polygon([(-10, -10), (50, -10), (50, 10), (-10, 10), (-10, -10)])
+    seed = LineString([(0, 0), (40, 0)])
+
+    def fake_extract(_poly, _src_geom, _dst_geom, _guided_strategy, *_args, **_kwargs):
+        fake_extract.last_info = {"qhull_retry": "q12", "polygon_stabilized": False}
+        return LineString([(0, 0), (20, 0), (40, 0)])
+
+    fake_extract.last_info = {}
+
+    monkeypatch.setattr(algo_centerline, "_extract_centerline_from_polygon", fake_extract)
+    monkeypatch.setattr(algo_centerline, "_trim_and_snap_centerline", lambda c, _s, max_snap_dist=None: c)
+    monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: True)
+
+    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="main_route")
+
+    assert centerline.is_valid
+    assert status == algo_centerline.CenterlineStatus.THIN_POLYGON_STABILIZED_SUCCESS
+
+
+def test_seedline_compute_uses_seedline_fallback_when_lcp_returns_none(monkeypatch):
+    seed = LineString([(0, 0), (40, 0)])
+    seed_gdf = _seed_gdf(seed)
+    seed_line = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        centerline_method="astar",
+    )
+
+    meta = {"transform": from_origin(-10, 10, 1, 1), "crs": seed_gdf.crs, "nodata": None}
+    monkeypatch.setattr(seed_line, "_clip_chm", lambda *_args, **_kwargs: ("raster", meta))
+    monkeypatch.setattr(algo_centerline.algo_cost, "cost_raster", lambda *_args, **_kwargs: ("cost", meta))
+    monkeypatch.setattr(
+        algo_centerline.algo_astar,
+        "find_least_cost_path_astar_closest_line",
+        lambda *_args, **_kwargs: None,
+    )
+
+    seed_line.compute()
+
+    assert seed_line.centerline.geometry.iloc[0].equals(seed)
+    assert seed_line.lc_path.geometry.iloc[0].equals(seed)
+    assert seed_line.centerline["cl_status"].iloc[0] == algo_centerline.CenterlineStatus.LCP_FAILED_SEED_FALLBACK.value
+    assert seed_line.centerline["cl_status_name"].iloc[0] == "LCP_FAILED_SEED_FALLBACK"
+
+
+def test_seedline_compute_uses_seedline_fallback_when_lcp_raises(monkeypatch):
+    seed = LineString([(0, 0), (40, 0)])
+    seed_gdf = _seed_gdf(seed)
+    seed_line = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        centerline_method="astar",
+    )
+
+    meta = {"transform": from_origin(-10, 10, 1, 1), "crs": seed_gdf.crs, "nodata": None}
+    monkeypatch.setattr(seed_line, "_clip_chm", lambda *_args, **_kwargs: ("raster", meta))
+    monkeypatch.setattr(algo_centerline.algo_cost, "cost_raster", lambda *_args, **_kwargs: ("cost", meta))
+
+    def raise_lcp(*_args, **_kwargs):
+        raise RuntimeError("lcp failed")
+
+    monkeypatch.setattr(algo_centerline.algo_astar, "find_least_cost_path_astar_closest_line", raise_lcp)
+
+    seed_line.compute()
+
+    assert seed_line.centerline.geometry.iloc[0].equals(seed)
+    assert seed_line.centerline["cl_status"].iloc[0] == algo_centerline.CenterlineStatus.LCP_FAILED_SEED_FALLBACK.value
+    assert seed_line.centerline["cl_status_name"].iloc[0] == "LCP_FAILED_SEED_FALLBACK"
+
+
+def test_seedline_compute_uses_lcp_fallback_when_corridor_fails(monkeypatch):
+    seed = LineString([(0, 0), (40, 0)])
+    lcp = LineString([(0, 0), (10, 2), (40, 0)])
+    seed_gdf = _seed_gdf(seed)
+    seed_line = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        centerline_method="astar",
+    )
+
+    meta = {"transform": from_origin(-10, 10, 1, 1), "crs": seed_gdf.crs, "nodata": None}
+    monkeypatch.setattr(seed_line, "_clip_chm", lambda *_args, **_kwargs: ("raster", meta))
+    monkeypatch.setattr(algo_centerline.algo_cost, "cost_raster", lambda *_args, **_kwargs: ("cost", meta))
+    monkeypatch.setattr(
+        algo_centerline.algo_astar,
+        "find_least_cost_path_astar_closest_line",
+        lambda *_args, **_kwargs: lcp,
+    )
+
+    def raise_corridor(*_args, **_kwargs):
+        raise RuntimeError("corridor failed")
+
+    monkeypatch.setattr(algo_centerline.algo_astar, "astar_accumulation_corridor_raster", raise_corridor)
+
+    seed_line.compute()
+
+    assert seed_line.centerline.geometry.iloc[0].equals(lcp)
+    assert seed_line.lc_path.geometry.iloc[0].equals(lcp)
+    assert seed_line.centerline["cl_status"].iloc[0] == algo_centerline.CenterlineStatus.CENTERLINE_FAILED_LCP_FALLBACK.value
+    assert seed_line.centerline["cl_status_name"].iloc[0] == "CENTERLINE_FAILED_LCP_FALLBACK"
+
+
+def test_seedline_compute_uses_lcp_fallback_when_find_centerline_fails(monkeypatch):
+    seed = LineString([(0, 0), (40, 0)])
+    lcp = LineString([(0, 0), (10, 2), (40, 0)])
+    corridor = Polygon([(-5, -5), (45, -5), (45, 5), (-5, 5), (-5, -5)])
+    seed_gdf = _seed_gdf(seed)
+    seed_line = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        centerline_method="astar",
+    )
+
+    meta = {"transform": from_origin(-10, 10, 1, 1), "crs": seed_gdf.crs, "nodata": None}
+    monkeypatch.setattr(seed_line, "_clip_chm", lambda *_args, **_kwargs: ("raster", meta))
+    monkeypatch.setattr(algo_centerline.algo_cost, "cost_raster", lambda *_args, **_kwargs: ("cost", meta))
+    monkeypatch.setattr(
+        algo_centerline.algo_astar,
+        "find_least_cost_path_astar_closest_line",
+        lambda *_args, **_kwargs: lcp,
+    )
+    monkeypatch.setattr(
+        algo_centerline.algo_astar,
+        "astar_accumulation_corridor_raster",
+        lambda *_args, **_kwargs: ("corridor", {}),
+    )
+    monkeypatch.setattr(
+        algo_centerline,
+        "find_corridor_polygon",
+        lambda *_args, **_kwargs: gpd.GeoDataFrame(geometry=[corridor], crs=seed_gdf.crs),
+    )
+    monkeypatch.setattr(seed_line, "_postprocess_corridor_polygon", lambda corridor_gdf: corridor_gdf)
+    monkeypatch.setattr(
+        algo_centerline,
+        "find_centerline",
+        lambda *_args, **_kwargs: (lcp, algo_centerline.CenterlineStatus.REGENERATE_FAILED),
+    )
+
+    seed_line.compute()
+
+    assert seed_line.centerline.geometry.iloc[0].equals(lcp)
+    assert seed_line.centerline["cl_status"].iloc[0] == algo_centerline.CenterlineStatus.CENTERLINE_FAILED_LCP_FALLBACK.value
+    assert seed_line.centerline["cl_status_name"].iloc[0] == "CENTERLINE_FAILED_LCP_FALLBACK"
+
+
+def test_seedline_compute_uses_absolute_footprint_before_lcp_fallback(monkeypatch):
+    seed = LineString([(0, 0), (40, 0)])
+    lcp = LineString([(0, 0), (10, 2), (40, 0)])
+    corridor = Polygon([(-5, -5), (45, -5), (45, 5), (-5, 5), (-5, -5)])
+    absolute_centerline = LineString([(0, 0), (20, 1), (40, 0)])
+    seed_gdf = _seed_gdf(seed)
+    seed_line = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        centerline_method="astar",
+    )
+
+    meta = {"transform": from_origin(-10, 10, 1, 1), "crs": seed_gdf.crs, "nodata": None}
+    monkeypatch.setattr(seed_line, "_clip_chm", lambda *_args, **_kwargs: ("raster", meta))
+    monkeypatch.setattr(algo_centerline.algo_cost, "cost_raster", lambda *_args, **_kwargs: ("cost", meta))
+    monkeypatch.setattr(
+        algo_centerline.algo_astar,
+        "find_least_cost_path_astar_closest_line",
+        lambda *_args, **_kwargs: lcp,
+    )
+    monkeypatch.setattr(
+        algo_centerline.algo_astar,
+        "astar_accumulation_corridor_raster",
+        lambda *_args, **_kwargs: ("corridor", {}),
+    )
+    monkeypatch.setattr(
+        algo_centerline,
+        "find_corridor_polygon",
+        lambda *_args, **_kwargs: gpd.GeoDataFrame(geometry=[corridor], crs=seed_gdf.crs),
+    )
+    monkeypatch.setattr(seed_line, "_postprocess_corridor_polygon", lambda corridor_gdf: corridor_gdf)
+
+    calls = []
+
+    def fake_find_centerline(poly, *_args, **_kwargs):
+        calls.append(poly)
+        if len(calls) == 1:
+            return lcp, algo_centerline.CenterlineStatus.FAILED
+        return absolute_centerline, algo_centerline.CenterlineStatus.SUCCESS
+
+    monkeypatch.setattr(algo_centerline, "find_centerline", fake_find_centerline)
+
+    seed_line.compute()
+
+    assert len(calls) == 2
+    assert seed_line.centerline.geometry.iloc[0].equals(absolute_centerline)
+    assert seed_line.centerline["cl_status"].iloc[0] == algo_centerline.CenterlineStatus.ABSOLUTE_FOOTPRINT_SUCCESS.value
+    assert seed_line.centerline["cl_status_name"].iloc[0] == "ABSOLUTE_FOOTPRINT_SUCCESS"
+
+
+def test_snap_end_to_end_respects_max_snap_distance():
+    ref = LineString([(0, 0), (100, 0)])
+    line = LineString([(20, 0), (80, 0)])
+
+    snapped = algo_centerline.snap_end_to_end(line, ref, max_snap_dist=5)
+    assert snapped is not None
+    assert list(snapped.coords)[0] == (20.0, 0.0)
+    assert list(snapped.coords)[-1] == (80.0, 0.0)
+
+
+def test_centerline_tool_rejects_unknown_guided_strategy():
+    from beratools.tools.centerline import centerline
+
+    with pytest.raises(ValueError, match="not a valid CenterlineStrategy"):
+        centerline(
+            in_line="dummy.gpkg|line",
+            in_raster="dummy.tif",
+            line_radius=15,
+            proc_segments=True,
+            out_line="out.gpkg|centerline",
+            guided_strategy="unknown",
+        )
+
+
+def test_centerline_tool_rejects_unknown_centerline_method():
+    from beratools.tools.centerline import centerline
+
+    with pytest.raises(ValueError, match="not a valid CenterlineMethod"):
+        centerline(
+            in_line="dummy.gpkg|line",
+            in_raster="dummy.tif",
+            line_radius=15,
+            proc_segments=True,
+            out_line="out.gpkg|centerline",
+            centerline_method="unknown",
+        )
+
+
+def test_generate_line_class_list_forwards_astar_options(monkeypatch):
+    from beratools.tools import centerline as centerline_tool
+
+    line_gdf = gpd.GeoDataFrame(geometry=[LineString([(0, 0), (1, 0)])], crs="EPSG:3857")
+    captured = {}
+
+    class FakeSeedLine:
+        def __init__(self, *args, **kwargs):
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(centerline_tool.algo_common, "prepare_lines_gdf", lambda *_args, **_kwargs: [line_gdf])
+    monkeypatch.setattr(centerline_tool.algo_centerline, "SeedLine", FakeSeedLine)
+
+    line_classes = centerline_tool.generate_line_class_list(
+        "input.gpkg",
+        "input.tif",
+        line_radius=15,
+        centerline_method="astar",
+        lcp_simplify_enabled=True,
+        lcp_simplify_diameter=12,
+        lcp_smooth_enabled=True,
+        lcp_smooth_iterations=2,
+        chm_mode="buffer",
+        chm_buffer_width=6,
+        chm_buffer_multiplier=0.5,
+        astar_corridor_line_bias_weight=0.2,
+        astar_corridor_distance_penalty_weight=0.4,
+    )
+
+    assert len(line_classes) == 1
+    assert captured["kwargs"]["centerline_method"] == "astar"
+    assert captured["kwargs"]["lcp_simplify_enabled"] is True
+    assert captured["kwargs"]["lcp_simplify_diameter"] == 12
+    assert captured["kwargs"]["lcp_smooth_iterations"] == 2
+    assert captured["kwargs"]["chm_mode"] == "buffer"
+    assert captured["kwargs"]["chm_buffer_width"] == 6
+    assert captured["kwargs"]["chm_buffer_multiplier"] == 0.5
+    assert captured["kwargs"]["astar_corridor_line_bias_weight"] == 0.2
+    assert captured["kwargs"]["astar_corridor_distance_penalty_weight"] == 0.4
+
+
+def test_centerline_tool_rejects_unknown_chm_mode():
+    from beratools.tools.centerline import centerline
+
+    with pytest.raises(ValueError, match="not a valid CenterlineChmMode"):
+        centerline(
+            in_line="dummy.gpkg|line",
+            in_raster="dummy.tif",
+            line_radius=15,
+            proc_segments=True,
+            out_line="out.gpkg|centerline",
+            chm_mode="unknown",
+        )
+
+
+def test_seedline_clip_chm_dispatches_current_alt_and_buffer(monkeypatch):
+    seed_gdf = gpd.GeoDataFrame(geometry=[LineString([(0, 0), (1, 0)])], crs="EPSG:3857")
+    seed_line = seed_gdf.geometry.iloc[0]
+    calls = []
+
+    def fake_current(in_raster, clip_geometry, buffer):
+        calls.append(("current", in_raster, clip_geometry, buffer))
+        return "current-raster", {"mode": "current"}
+
+    def fake_alt(seedline_class, in_raster, clip_geometry, buffer):
+        calls.append(("alt", seedline_class.tree_radius, in_raster, clip_geometry, buffer))
+        return "alt-raster", {"mode": "alt"}, "tree-gaps"
+
+    monkeypatch.setattr(algo_centerline.sp_common, "clip_raster", fake_current)
+    monkeypatch.setattr(
+        algo_centerline.alt_sp_common,
+        "alt_clip_and_filter_regional_maxima_wgap",
+        fake_alt,
+    )
+
+    current = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        chm_mode="current",
+    )
+    assert current._clip_chm("dummy.tif", seed_line, 15) == (
+        "current-raster",
+        {"mode": "current"},
+    )
+
+    buffer_mode = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        chm_mode="buffer",
+    )
+    assert buffer_mode._clip_chm("dummy.tif", seed_line, 15) == (
+        "current-raster",
+        {"mode": "current"},
+    )
+
+    alt = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        chm_mode="alt",
+    )
+    assert alt._clip_chm("dummy.tif", seed_line, 15) == ("alt-raster", {"mode": "alt"}, "tree-gaps")
+
+    assert calls[0] == ("current", "dummy.tif", seed_line, 15)
+    assert calls[1] == ("current", "dummy.tif", seed_line, 15)
+    assert calls[2] == ("alt", 2.5, "dummy.tif", seed_line, 15)
+
+
+def test_seedline_buffer_mode_reduces_only_initial_chm(monkeypatch):
+    seed = LineString([(0, 0), (40, 0)])
+    lcp = LineString([(0, 0), (20, 1), (40, 0)])
+    corridor = Polygon([(-5, -5), (45, -5), (45, 5), (-5, 5), (-5, -5)])
+    seed_gdf = _seed_gdf(seed)
+    seed_line = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        centerline_method="astar",
+        chm_mode="buffer",
+        chm_buffer_width=5,
+        chm_buffer_multiplier=0.5,
+    )
+    meta = {"transform": from_origin(-10, 10, 1, 1), "crs": seed_gdf.crs, "nodata": None}
+    clipped_rasters = iter(["initial-chm", "corridor-chm"])
+    cost_inputs = []
+    reduction_calls = []
+
+    monkeypatch.setattr(seed_line, "_clip_chm", lambda *_args, **_kwargs: (next(clipped_rasters), meta))
+
+    def fake_reduce(chm, out_meta, line, buffer_width, multiplier):
+        reduction_calls.append((chm, out_meta, line, buffer_width, multiplier))
+        return "reduced-initial-chm"
+
+    def fake_cost(chm, out_meta):
+        cost_inputs.append(chm)
+        return "cost", out_meta
+
+    monkeypatch.setattr(algo_centerline.algo_cost, "reduce_chm_in_line_buffer", fake_reduce)
+    monkeypatch.setattr(algo_centerline.algo_cost, "cost_raster", fake_cost)
+    monkeypatch.setattr(
+        algo_centerline.algo_astar,
+        "find_least_cost_path_astar_closest_line",
+        lambda *_args, **_kwargs: lcp,
+    )
+    monkeypatch.setattr(
+        algo_centerline.algo_astar,
+        "astar_accumulation_corridor_raster",
+        lambda *_args, **_kwargs: ("corridor-raster", {}),
+    )
+    monkeypatch.setattr(
+        algo_centerline,
+        "find_corridor_polygon",
+        lambda *_args, **_kwargs: gpd.GeoDataFrame(geometry=[corridor], crs=seed_gdf.crs),
+    )
+    monkeypatch.setattr(seed_line, "_postprocess_corridor_polygon", lambda corridor_gdf: corridor_gdf)
+    monkeypatch.setattr(
+        algo_centerline,
+        "find_centerline",
+        lambda *_args, **_kwargs: (lcp, algo_centerline.CenterlineStatus.SUCCESS),
+    )
+
+    seed_line.compute()
+
+    assert cost_inputs == ["reduced-initial-chm", "corridor-chm"]
+    assert len(reduction_calls) == 1
+    assert reduction_calls[0][0] == "initial-chm"
+    assert reduction_calls[0][2].equals(seed)
+    assert reduction_calls[0][3:] == (5.0, 0.5)
+
+
+def test_find_centerline_virtual_forwards_guidance(monkeypatch):
+    poly = Polygon([(-10, -10), (50, -10), (50, 10), (-10, 10), (-10, -10)])
+    seed = LineString([(0, 0), (40, 0)])
+    captured = {}
+
+    def fake_extract(_poly, src_geom, dst_geom, guided_strategy, *_args, **_kwargs):
+        captured["guided_strategy"] = guided_strategy
+        captured["src_geom"] = src_geom
+        captured["dst_geom"] = dst_geom
+        return LineString([(0, 0), (20, 0), (40, 0)])
+
+    monkeypatch.setattr(algo_centerline, "_extract_centerline_from_polygon", fake_extract)
+    monkeypatch.setattr(algo_centerline, "_trim_and_snap_centerline", lambda c, _s, max_snap_dist=None: c)
+    monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: True)
+
+    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="virtual_nodes")
+    assert centerline is not None
+    assert centerline.is_valid
+    assert status == algo_centerline.CenterlineStatus.SUCCESS
+    assert captured["guided_strategy"] == "virtual_nodes"
+    assert isinstance(captured["src_geom"], Point)
+    assert isinstance(captured["dst_geom"], Point)
+
+
+def test_seedline_postprocess_lcp_simplifies_then_smooths(monkeypatch):
+    seed_gdf = gpd.GeoDataFrame(geometry=[LineString([(0, 0), (1, 1), (2, 0)])], crs="EPSG:3857")
+    seed_line = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        centerline_method="astar",
+        lcp_simplify_enabled=True,
+        lcp_simplify_diameter=10,
+        lcp_smooth_enabled=True,
+        lcp_smooth_iterations=1,
+    )
+    calls = []
+
+    def fake_simplify(line, *, crs, diameter, smooth_line):
+        calls.append(("simplify", crs, diameter, smooth_line))
+        return line
+
+    monkeypatch.setattr(algo_centerline.tool_geo_simplify, "simplify_line_reduce_bend", fake_simplify)
+
+    processed = seed_line._postprocess_lcp(seed_gdf.geometry.iloc[0], seed_gdf.crs)
+
+    assert calls == [("simplify", seed_gdf.crs, 10.0, True)]
+    assert processed.coords[0] == seed_gdf.geometry.iloc[0].coords[0]
+    assert processed.coords[-1] == seed_gdf.geometry.iloc[0].coords[-1]
+    assert len(processed.coords) > len(seed_gdf.geometry.iloc[0].coords)
+
+
+def test_validate_simplify_diameter_accepts_zero():
+    from beratools.core import tool_geo_simplify
+
+    assert tool_geo_simplify.validate_diameter(0) == 0.0
+
+
+def test_validate_simplify_diameter_rejects_negative():
+    from beratools.core import tool_geo_simplify
+
+    with pytest.raises(ValueError, match=">= 0"):
+        tool_geo_simplify.validate_diameter(-1)
+
+
+def test_run_geo_simplify_reduce_bend_builds_expected_command(monkeypatch, tmp_path):
+    from beratools.core import tool_geo_simplify
+
+    captured = {}
+
+    class _Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def _fake_run(command, capture_output, text):
+        captured["command"] = command
+        captured["capture_output"] = capture_output
+        captured["text"] = text
+        return _Result()
+
+    monkeypatch.setattr(tool_geo_simplify, "_geo_simplify_resolve_binary_path", lambda: Path("geo-simplify"))
+    monkeypatch.setattr(tool_geo_simplify.subprocess, "run", _fake_run)
+
+    tool_geo_simplify.run_reduce_bend(
+        input_file=tmp_path / "centerline_temp.gpkg",
+        in_layer="centerline_temp",
+        output_file=str(tmp_path / "out.gpkg"),
+        out_layer="centerline",
+        diameter=10.0,
+        smooth_line=True,
+    )
+
+    assert captured["capture_output"] is True
+    assert captured["text"] is True
+    assert captured["command"] == [
+        "geo-simplify",
+        "reduce-bend",
+        "--input",
+        str(tmp_path / "centerline_temp.gpkg"),
+        "--in-layer",
+        "centerline_temp",
+        "--output",
+        str(tmp_path / "out.gpkg"),
+        "--diameter",
+        "10.0",
+        "--smooth-line",
+        "--out-layer",
+        "centerline",
+    ]
+
+
+def test_run_geo_simplify_reduce_bend_omits_out_layer_when_empty(monkeypatch, tmp_path):
+    from beratools.core import tool_geo_simplify
+
+    captured = {}
+
+    class _Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def _fake_run(command, capture_output, text):
+        captured["command"] = command
+        return _Result()
+
+    monkeypatch.setattr(tool_geo_simplify, "_geo_simplify_resolve_binary_path", lambda: Path("geo-simplify"))
+    monkeypatch.setattr(tool_geo_simplify.subprocess, "run", _fake_run)
+
+    tool_geo_simplify.run_reduce_bend(
+        input_file=tmp_path / "centerline_temp.gpkg",
+        in_layer="centerline_temp",
+        output_file=str(tmp_path / "out.gpkg"),
+        out_layer=None,
+        diameter=10.0,
+        smooth_line=True,
+    )
+
+    assert "--smooth-line" in captured["command"]
+    assert "--out-layer" not in captured["command"]
+
+
+def test_centerline_tool_converts_line_radius_meters_to_projected_native_units(monkeypatch):
+    _patch_raster_open(monkeypatch)
+    from beratools.tools.centerline import centerline
+
+    captured = {}
+
+    class _FakeOSR:
+        def __init__(self, crs_text):
+            self._crs_text = crs_text
+
+        def ExportToWkt(self):
+            return self._crs_text
+
+    feet_crs_wkt = pyproj.CRS.from_epsg(2263).to_wkt()
+
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.vector_crs",
+        lambda *_args, **_kwargs: _FakeOSR(feet_crs_wkt),
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.raster_crs",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "beratools.tools.centerline.gpd.read_file",
+        lambda *_args, **_kwargs: gpd.GeoDataFrame(geometry=[LineString([(0, 0), (1, 0)])], crs="EPSG:2263"),
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.check_vector_raster_overlap",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.check_vector_raster_extent_overlap",
+        lambda *_args, **_kwargs: True,
+    )
+
+    def _fake_generate(
+        _in_file, _in_raster, line_radius, layer=None, proc_segments=True, guided_strategy=None, **_kwargs
+    ):
+        captured["line_radius"] = line_radius
+        return []
+
+    monkeypatch.setattr("beratools.tools.centerline.generate_line_class_list", _fake_generate)
+
+    result = centerline(
+        in_line="dummy.gpkg|line",
+        in_raster="dummy.tif",
+        line_radius=10.0,
+        proc_segments=True,
+        out_line="out.gpkg|centerline",
+    )
+
+    assert result == 1
+    assert captured["line_radius"] == pytest.approx(32.8083333333, rel=1e-6)
+
+
+def test_centerline_tool_rejects_geographic_crs_for_meter_radius(monkeypatch):
+    from beratools.tools.centerline import centerline
+
+    class _FakeOSR:
+        def __init__(self, crs_text):
+            self._crs_text = crs_text
+
+        def ExportToWkt(self):
+            return self._crs_text
+
+    geo_crs_wkt = pyproj.CRS.from_epsg(4326).to_wkt()
+
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.vector_crs",
+        lambda *_args, **_kwargs: _FakeOSR(geo_crs_wkt),
+    )
+
+    with pytest.raises(ValueError, match="requires a projected CRS"):
+        centerline(
+            in_line="dummy.gpkg|line",
+            in_raster="dummy.tif",
+            line_radius=10.0,
+            proc_segments=True,
+            out_line="out.gpkg|centerline",
+        )
+
+
+def test_centerline_tool_terminates_when_lines_do_not_overlap_raster(monkeypatch):
+    _patch_raster_open(monkeypatch)
+    from beratools.tools.centerline import centerline
+
+    class _FakeOSR:
+        def ExportToWkt(self):
+            return pyproj.CRS.from_epsg(2263).to_wkt()
+
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.vector_crs", lambda *_args, **_kwargs: _FakeOSR()
+    )
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "beratools.tools.centerline.gpd.read_file",
+        lambda *_args, **_kwargs: gpd.GeoDataFrame(geometry=[LineString([(0, 0), (1, 0)])], crs="EPSG:2263"),
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.check_vector_raster_overlap",
+        lambda *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.check_vector_raster_extent_overlap",
+        lambda *_args, **_kwargs: True,
+    )
+
+    called = {"generate": 0}
+
+    def _fake_generate(*_args, **_kwargs):
+        called["generate"] += 1
+        raise RuntimeError("should-not-be-called")
+
+    monkeypatch.setattr("beratools.tools.centerline.generate_line_class_list", _fake_generate)
+
+    result = centerline(
+        in_line="dummy.gpkg|line",
+        in_raster="dummy.tif",
+        line_radius=10.0,
+        proc_segments=True,
+        out_line="out.gpkg|centerline",
+    )
+
+    assert result is None
+    assert called["generate"] == 0
+
+
+def test_centerline_tool_continues_when_lines_partially_overlap_raster(monkeypatch):
+    _patch_raster_open(monkeypatch)
+    from beratools.tools.centerline import centerline
+
+    class _FakeOSR:
+        def ExportToWkt(self):
+            return pyproj.CRS.from_epsg(2263).to_wkt()
+
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.vector_crs", lambda *_args, **_kwargs: _FakeOSR()
+    )
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "beratools.tools.centerline.gpd.read_file",
+        lambda *_args, **_kwargs: gpd.GeoDataFrame(geometry=[LineString([(0, 0), (1, 0)])], crs="EPSG:2263"),
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.check_vector_raster_overlap",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.check_vector_raster_extent_overlap",
+        lambda *_args, **_kwargs: True,
+    )
+
+    called = {"generate": 0}
+
+    def _fake_generate(*_args, **_kwargs):
+        called["generate"] += 1
+        return []
+
+    monkeypatch.setattr("beratools.tools.centerline.generate_line_class_list", _fake_generate)
+
+    result = centerline(
+        in_line="dummy.gpkg|line",
+        in_raster="dummy.tif",
+        line_radius=10.0,
+        proc_segments=True,
+        out_line="out.gpkg|centerline",
+    )
+
+    assert result == 1
+    assert called["generate"] == 1
+
+
+def test_centerline_tool_terminates_on_extent_precheck_without_loading_features(monkeypatch):
+    _patch_raster_open(monkeypatch)
+    from beratools.tools.centerline import centerline
+
+    class _FakeOSR:
+        def ExportToWkt(self):
+            return pyproj.CRS.from_epsg(2263).to_wkt()
+
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.vector_crs", lambda *_args, **_kwargs: _FakeOSR()
+    )
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.check_vector_raster_extent_overlap",
+        lambda *_args, **_kwargs: False,
+    )
+
+    called = {"read": 0}
+
+    def _fake_read(*_args, **_kwargs):
+        called["read"] += 1
+        raise RuntimeError("should-not-read")
+
+    monkeypatch.setattr("beratools.tools.centerline.gpd.read_file", _fake_read)
+
+    result = centerline(
+        in_line="dummy.gpkg|line",
+        in_raster="dummy.tif",
+        line_radius=10.0,
+        proc_segments=True,
+        out_line="out.gpkg|centerline",
+    )
+
+    assert result is None
+    assert called["read"] == 0
