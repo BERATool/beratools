@@ -4,8 +4,8 @@ Free code signing is provided by [SignPath.io](https://about.signpath.io/), cert
 
 ## Team roles
 
-- Committers and reviewers: [AppliedGRG developers](https://github.com/orgs/appliedgrg/teams/developers)
-- Approvers: [AppliedGRG administrators](https://github.com/orgs/appliedgrg/teams/admin)
+- Committers and reviewers: [BERATool developers](https://github.com/orgs/BERATool/teams/developers)
+- Approvers: [BERATool administrators](https://github.com/orgs/BERATool/teams/admin)
 
 ## Release process
 
