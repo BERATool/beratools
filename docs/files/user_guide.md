@@ -80,6 +80,12 @@ graph TD
 The **Pipeline** tab, next to **Tool history** in the GUI, chains tools together so they run one
 after another, without writing a script.
 
+![Pipeline panel](screenshots/bt_pipeline.png)
+
+The pipeline above chains the six mapping tools into a ground footprint workflow. **Ground Footprint**
+is selected: its centerline and footprint inputs both link to step 5, and those fields are greyed out
+in the tool form.
+
 1. **Add steps**: drag tools from **Tools available** into the Pipeline tab. Dragging over the tab
    switches to it. You can also select a tool and click the add button. Drag steps, or use the arrow
    buttons, to change their order.
