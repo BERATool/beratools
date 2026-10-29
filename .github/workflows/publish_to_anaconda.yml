@@ -115,7 +115,8 @@ jobs:
           shopt -s nullglob
           echo "📦 Collecting build outputs from packaging/output"
 
-          files=(packaging/output/*.conda packaging/output/*.tar.bz2)
+          # rattler-build writes packages into a platform subdir (e.g. output/noarch/)
+          files=(packaging/output/*/*.conda packaging/output/*/*.tar.bz2)
           if [ ${#files[@]} -ne 1 ]; then
             echo "❌ Expected one build artifact, found ${#files[@]}."
             exit 1
