@@ -7,7 +7,7 @@ BERA Tools is successor of [Forest Line Mapper](https://github.com/appliedgrg/fl
 [![Python Integration Tests](https://img.shields.io/github/actions/workflow/status/BERATool/beratools/python-integration-tests.yml?branch=main)](https://github.com/BERATool/beratools/actions/workflows/python-integration-tests.yml)
 [![GitHub Pages](https://img.shields.io/github/deployments/BERATool/beratools/github-pages?label=docs)](https://beratool.github.io/beratools/)
 [![Conda Version](https://img.shields.io/conda/v/bera_tools/beratools)](https://anaconda.org/bera_tools/beratools)
-[![PyPI](https://img.shields.io/pypi/v/BERATools)](https://pypi.org/project/BERATools/)
+[![PyPI](https://img.shields.io/pypi/v/BERATools?cacheSeconds=3600)](https://pypi.org/project/BERATools/)
 [![Python Version](https://img.shields.io/badge/python-3.12--3.14-blue)](https://www.python.org/downloads/)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
