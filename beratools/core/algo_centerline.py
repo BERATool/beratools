@@ -1115,6 +1115,9 @@ class SeedLine:
         self.corridor_poly_gpd["cl_status_name"] = status.name
         self.corridor_poly_gpd["OLnFID"] = self.lc_path["OLnFID"]
         self.corridor_poly_gpd["OLnSEG"] = self.lc_path["OLnSEG"]
+        for field in (algo_common.SOURCE_ROW_FIELD, algo_common.SOURCE_SEG_FIELD):
+            if field in self.lc_path.columns:
+                self.corridor_poly_gpd[field] = self.lc_path[field]
 
     def _set_fallback_outputs(self, lc_path, centerline, status, corridor_geometry=None):
         status = CenterlineStatus(status)

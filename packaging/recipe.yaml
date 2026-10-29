@@ -33,18 +33,19 @@ requirements:
     - dask
     - gdal >=3.12,<4
     - geopandas
+    - pandas
     - networkit
     - numpy >=1.26,<2.4
     - pyarrow
-    - pyogrio
+    - pyogrio >=0.12.0
     - pyqt
-    - rasterio
-    - scikit-image
+    - rasterio >=1.5.0
+    - scikit-image >=0.24.0
     - tabulate
     - tqdm
     - xarray-spatial
-    - pandarallel
     - python-igraph
+    - psutil
 tests:
   - script:
       - pytest tests/test_workflow.py

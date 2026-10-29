@@ -32,7 +32,9 @@
 
 from beratools.core.line_footprint_functions import *
 from beratools.core.canopy_threshold_relative import *
+from beratools.utility.spatial_common import decode_file_layer
 import time
+from pathlib import Path
 
 
 def line_footprint_relative(
@@ -52,6 +54,7 @@ def line_footprint_relative(
     processes,
     call_mode,
     log_level,
+    merge_by_original_line=False,
 ):
     """Create canopy footprint polygons using per-line relative canopy thresholds.
 
@@ -91,8 +94,20 @@ def line_footprint_relative(
         processes: Number of parallel processes.
         call_mode: How the tool was invoked (see `CallMode`).
         log_level: Logging level. Currently not used.
+        merge_by_original_line: Merge footprints and centerlines sharing an original
+            line ID (OLnFID) into one feature; otherwise keep one per input line.
     """
     verbose = True if call_mode == CallMode.GUI.value else False
+
+    # Write the intermediate dynamic centerline as a layer in the output footprint's file,
+    # so no extra file is created and input data folders are never written to.
+    in_file, in_layer = decode_file_layer(in_line)
+    out_ft_file = decode_file_layer(out_footprint)[0]
+    dyn_layer = "DynCanTh_" + (in_layer or Path(in_file).stem)
+    if Path(out_ft_file).suffix.lower() != ".gpkg":
+        # a shapefile holds one layer, so use a GeoPackage beside it
+        out_ft_file = Path(out_ft_file).with_name(dyn_layer + ".gpkg").as_posix()
+    out_dyn_centerline = f"{out_ft_file}|{dyn_layer}"
 
     dy_cl_line = main_canopy_threshold_relative(
         in_line=in_line,
@@ -101,7 +116,7 @@ def line_footprint_relative(
         canopy_thresh_percentage=int(float(canopy_thresh_percentage)),
         full_step=bool(True),
         processes=int(float(processes)),
-
+        out_dyn_centerline=out_dyn_centerline,
     )
 
     if not dy_cl_line:
@@ -122,6 +137,7 @@ def line_footprint_relative(
         full_step=bool(True),
         canopy_thresh_percentage=int(float(canopy_thresh_percentage)),
         processes=int(float(processes)),
+        merge_by_original_line=str(merge_by_original_line).strip().lower() in ("true", "1", "yes"),
     )
 
 if __name__ == "__main__":

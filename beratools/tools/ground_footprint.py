@@ -273,6 +273,7 @@ def ground_footprint(
     out_footprint,
     in_layer_lc_path="least_cost_path",
     merge_group=True,
+    merge_by_original_line=False,
     width_percentile=75,
     trim_output=True,
     processes=0,
@@ -304,6 +305,14 @@ def ground_footprint(
         min_value=bt_const.SMALL_BUFFER,
     )
 
+    # group by original line, as the centerline tool merges, so pieces share one footprint
+    merge_by_original_line = str(merge_by_original_line).strip().lower() in ("true", "1", "yes")
+    if merge_by_original_line and "OLnFID" not in line_gdf.columns:
+        print("[Warning]: OLnFID not found in input lines; lines are not merged by original line.")
+        merge_by_original_line = False
+    if merge_by_original_line:
+        line_gdf[bt_const.BT_GROUP] = line_gdf["OLnFID"]
+
     if bt_const.BT_GROUP not in line_gdf.columns:
         line_gdf[bt_const.BT_GROUP] = range(1, len(line_gdf) + 1)
 
@@ -314,6 +323,8 @@ def ground_footprint(
             lc_path_gdf = lc_path_gdf.rename(columns={"fid": "orig_fid"})
         lc_path_gdf = algo_common.clean_geometries(lc_path_gdf, stage="input")
         lc_path_gdf = lc_path_gdf.reset_index(drop=True)
+        if merge_by_original_line and "OLnFID" in lc_path_gdf.columns:
+            lc_path_gdf[bt_const.BT_GROUP] = lc_path_gdf["OLnFID"]
     except (ValueError, OSError, pyogrio.errors.DataLayerError):
         print(f"Layer '{in_layer_lc_path}' not found in {in_file}, skipping least cost path logic.")
         use_least_cost_path = False
@@ -330,6 +341,9 @@ def ground_footprint(
     poly_gdf = algo_common.clean_geometries(poly_gdf, stage="input")
     poly_gdf = poly_gdf.reset_index(drop=True)
     poly_gdf["geometry"] = poly_gdf["geometry"].apply(algo_common.remove_holes)
+    # polygons are matched to lines by BT_GROUP, so keep their groups the same as the lines'
+    if merge_by_original_line and "OLnFID" in poly_gdf.columns:
+        poly_gdf[bt_const.BT_GROUP] = poly_gdf["OLnFID"]
 
     if not sp_common.compare_crs(
         sp_common.vector_crs(in_file, in_layer), sp_common.vector_crs(in_fp_file, in_layer_fp)

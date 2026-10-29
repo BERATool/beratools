@@ -52,13 +52,14 @@ def custom_line_merge(geom):
         return geom
 
 
-def run_line_merge(in_line_gdf, merge_group):
+def run_line_merge(in_line_gdf, merge_group, group_field=bt_const.BT_GROUP):
+    """Merge lines sharing a group_field value into one line (BT_GROUP by default)."""
     out_line_gdf = in_line_gdf
     if merge_group:
-        if bt_const.BT_GROUP not in in_line_gdf.columns:
+        if group_field not in in_line_gdf.columns:
             in_line_gdf = in_line_gdf.copy()
-            in_line_gdf[bt_const.BT_GROUP] = range(1, len(in_line_gdf) + 1)
-        out_line_gdf = in_line_gdf.dissolve(by=bt_const.BT_GROUP, as_index=False)
+            in_line_gdf[group_field] = range(1, len(in_line_gdf) + 1)
+        out_line_gdf = in_line_gdf.dissolve(by=group_field, as_index=False)
 
     out_line_gdf.geometry = out_line_gdf.geometry.apply(safe_linemerge)
     for i, row in enumerate(out_line_gdf.itertuples()):

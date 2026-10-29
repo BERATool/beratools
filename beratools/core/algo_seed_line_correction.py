@@ -460,7 +460,7 @@ class SeedLineCorrection:
         ).remove_close_vertices(lines_gdf)
 
         if self.optimize_internal_vertices:
-            self.line_list = algo_common.split_lines_to_segments(lines_gdf)
+            self.line_list = algo_common.split_lines_to_segments(algo_common.keep_source_seg(lines_gdf))
         else:
             self.line_list = algo_common.lines_gdf_to_list(lines_gdf)
 
@@ -542,11 +542,12 @@ class SeedLineCorrection:
 
         lines = pd.concat(self.line_list, ignore_index=True)
 
-        if self.optimize_internal_vertices and "BT_UID" in lines.columns:
+        if self.optimize_internal_vertices and bt_const.BT_UID in lines.columns:
             import beratools.core.algo_merge_lines as algo_merge_lines
 
-            lines[bt_const.BT_GROUP] = lines["BT_UID"]
-            lines = algo_merge_lines.run_line_merge(lines, merge_group=True)
+            # join the segments back into their input rows, keeping each row's BT_GROUP
+            lines = algo_merge_lines.run_line_merge(lines, merge_group=True, group_field=bt_const.BT_UID)
+            lines = algo_common.restore_source_seg(lines)
 
         if "length" not in lines.columns:
             lines["length"] = lines.geometry.length

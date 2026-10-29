@@ -478,9 +478,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # ToolWidgets
         tool_args = bt.get_bera_tool_args(self.tool_name)
+        # saved history is loaded as-is; inputs that can't be found are flagged in red
         self.tool_widget = ToolWidgets(self.tool_name, tool_args, bt.show_advanced, bt_data_obj=bt)
-        # at startup, history inputs that no longer exist start empty instead of flagged
-        self.tool_widget.clear_missing_inputs()
         self.tool_scroll_area = QtWidgets.QScrollArea()
         self.tool_scroll_area.setWidgetResizable(True)
         self.tool_scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)

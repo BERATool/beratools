@@ -69,7 +69,7 @@ def generate_line_class_list(
     corridor_polygon_smooth_iterations=1,
 ) -> list:
     line_classes = []
-    line_list = algo_common.prepare_lines_gdf(in_vector, layer, proc_segments)
+    line_list = algo_common.prepare_lines_gdf(in_vector, layer, proc_segments, tag_source_rows=True)
 
     for item in line_list:
         line_classes.append(
@@ -99,6 +99,44 @@ def generate_line_class_list(
     return line_classes
 
 
+MERGE_ORDER_FIELD = "BT_MERGE_ORDER"
+
+
+def _add_merge_order(gdf, merge_by_original_line):
+    """Number the pieces in the order they join: by input row and vertex, or along the original line."""
+    if gdf is None or gdf.empty:
+        return gdf
+    gdf = gdf.copy()
+    if merge_by_original_line:
+        group_field = "OLnFID"
+        sort_fields = [algo_common.SOURCE_SEG_FIELD, algo_common.SOURCE_ROW_FIELD, "OLnSEG"]
+    else:
+        group_field = algo_common.SOURCE_ROW_FIELD
+        sort_fields = ["OLnSEG"]
+    ordered = gdf.sort_values(sort_fields, kind="stable")
+    gdf[MERGE_ORDER_FIELD] = ordered.groupby(group_field, sort=False).cumcount()
+    return gdf
+
+
+def _restore_merged_ids(gdf, merge_by_original_line):
+    """Give merged rows their input OLnSEG back (or -1 for a whole original line) and drop helper fields."""
+    if gdf is None or gdf.empty:
+        return gdf
+    gdf = gdf.copy()
+    if merge_by_original_line:
+        gdf["OLnSEG"] = -1
+    elif algo_common.SOURCE_SEG_FIELD in gdf.columns:
+        gdf["OLnSEG"] = gdf[algo_common.SOURCE_SEG_FIELD]
+    return _drop_helper_fields(gdf)
+
+
+def _drop_helper_fields(gdf):
+    if gdf is None:
+        return gdf
+    helper_fields = [algo_common.SOURCE_ROW_FIELD, algo_common.SOURCE_SEG_FIELD, MERGE_ORDER_FIELD]
+    return gdf.drop(columns=[f for f in helper_fields if f in gdf.columns])
+
+
 def process_single_line_class(seed_line):
     try:
         # OLnFID and OLnSEG are added in previous QC stage.
@@ -117,6 +155,7 @@ def centerline(
     line_radius,
     proc_segments,
     out_line,
+    merge_by_original_line=False,
     centerline_method=bt_const.CENTERLINE_METHOD.value,
     guided_strategy=bt_const.CENTERLINE_GUIDED_STRATEGY.value,
     simplify_centerline=False,
@@ -158,6 +197,7 @@ def centerline(
     centerline_method_value = centerline_method.value
     chm_mode_value = chm_mode.value
     proc_segments = _to_bool(proc_segments)
+    merge_by_original_line = _to_bool(merge_by_original_line)
 
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
@@ -282,15 +322,24 @@ def centerline(
     dissolved_cl_orig=centerline_gdf
     dissolved_lcp_orig=lc_path_gdf
     dissolved_corridor_orig=corridor_gdf
+    # whole lines need no merging, so they are saved as they are
+    dissolved_cl = centerline_gdf
+    dissolved_lcp = lc_path_gdf
+    dissolved_corridor = corridor_gdf
     aux_file = algo_common.get_aux_path(out_file)
-    if proc_segments:
+    if proc_segments or merge_by_original_line:
         logger.info("Dissolving segments...")
+        dissolved_cl_orig, dissolved_lcp_orig, dissolved_corridor_orig = (
+            _add_merge_order(gdf, merge_by_original_line)
+            for gdf in (centerline_gdf, lc_path_gdf, corridor_gdf)
+        )
+        group_field = "OLnFID" if merge_by_original_line else algo_common.SOURCE_ROW_FIELD
 
         dissolved_cl = (
             algo_common.merge_lines_by_original_id(
                 line_gdf=dissolved_cl_orig,
-                group_field="OLnFID",
-                order_field="OLnSEG",
+                group_field=group_field,
+                order_field=MERGE_ORDER_FIELD,
                 max_bridge_gap=max(
                     cell_size * 1.5,
                     0.5,
@@ -311,8 +360,8 @@ def centerline(
         dissolved_lcp = (
             algo_common.merge_lines_by_original_id(
                 line_gdf=dissolved_lcp_orig,
-                group_field="OLnFID",
-                order_field="OLnSEG",
+                group_field=group_field,
+                order_field=MERGE_ORDER_FIELD,
                 max_bridge_gap=max(
                     cell_size * 0.75,
                     0.05,
@@ -326,8 +375,8 @@ def centerline(
         dissolved_corridor = (
             algo_common.merge_corridors_by_original_id(
                 dissolved_corridor_orig,
-                group_field="OLnFID",
-                order_field="OLnSEG",
+                group_field=group_field,
+                order_field=MERGE_ORDER_FIELD,
             )
         )
 
@@ -360,25 +409,44 @@ def centerline(
 
         logger.info("Dissolving segments...Done")
 
+    dissolved_cl, dissolved_lcp, dissolved_corridor = (
+        _restore_merged_ids(gdf, merge_by_original_line)
+        for gdf in (dissolved_cl, dissolved_lcp, dissolved_corridor)
+    )
+    centerline_gdf, lc_path_gdf, corridor_gdf = (
+        _drop_helper_fields(gdf) for gdf in (centerline_gdf, lc_path_gdf, corridor_gdf)
+    )
+
     if simplify_enabled and diameter > 0:
         temp_file = tool_geo_simplify.build_temp_output_same_folder(
             out_file,
             prefix=f"{Path(out_file).stem}_centerline_tmp_",
         )
+        # geo-simplify recreates its --output file, so never point it at out_file
+        # directly or every other layer in the GeoPackage is wiped.
+        temp_out_file = tool_geo_simplify.build_temp_output_same_folder(
+            out_file,
+            prefix=f"{Path(out_file).stem}_centerline_simplified_tmp_",
+        )
         temp_layer = "centerline_temp"
         try:
             dissolved_cl.to_file(temp_file.as_posix(), layer=temp_layer,overwrite=True)
+            temp_out_file.unlink()
             tool_geo_simplify.run_reduce_bend(
                 input_file=temp_file,
                 in_layer=temp_layer,
-                output_file=out_file,
+                output_file=temp_out_file.as_posix(),
                 out_layer=out_layer,
                 diameter=diameter,
                 smooth_line=True,
             )
+            simplified_cl = gpd.read_file(temp_out_file, layer=out_layer)
+            algo_common.drop_layer_if_exists(out_file, out_layer)
+            simplified_cl.to_file(out_file, layer=out_layer)
         finally:
-            if temp_file.exists():
-                temp_file.unlink()
+            for path in (temp_file, temp_out_file):
+                if path.exists():
+                    path.unlink()
     else:
         if simplify_enabled and diameter == 0:
             print("Centerline simplify enabled with diameter 0; skipping simplify step.")

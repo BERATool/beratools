@@ -716,7 +716,7 @@ class TestToolWidgetsAdvancedVisibility:
             if w.optional:
                 assert not w.isHidden()
 
-    def test_missing_input_history_clears_same_output_path(self, qtbot, tmp_path):
+    def test_missing_input_history_keeps_same_output_path(self, qtbot, tmp_path):
         missing = str(tmp_path / "history_missing.gpkg")
         tool_args = [
             {
@@ -747,11 +747,10 @@ class TestToolWidgetsAdvancedVisibility:
         in_widget = next(w for w in tw.widget_list if w.variable == "in_line")
         out_widget = next(w for w in tw.widget_list if w.variable == "out_line")
 
-        # the missing input is kept and flagged; the output with the same path is cleared
+        # the missing input is kept and flagged; the saved output is loaded as-is
         assert in_widget.value["path"] == missing
         assert in_widget.missing_input_error
-        assert out_widget.value["path"] == ""
-        assert out_widget.value["layer"] == ""
+        assert out_widget.value == {"path": missing, "layer": "Result_layer"}
 
     def test_missing_input_is_kept_flagged_and_blocks_run(self, qtbot, tmp_path):
         missing = str(tmp_path / "gone.tif")
@@ -814,21 +813,13 @@ class TestToolWidgetsAdvancedVisibility:
         assert "overwritten" in widget.layer_combo.toolTip()
         show_text.assert_not_called()
 
-    def test_clear_missing_inputs_empties_only_missing_paths(self, qtbot, tmp_path):
-        existing = tmp_path / "here.tif"
-        existing.write_bytes(b"")
-        missing_vector = str(tmp_path / "gone.gpkg")
+    def test_missing_gpkg_layer_is_kept_flagged_and_blocks_run(self, qtbot, tmp_path):
+        import geopandas as gpd
+        from shapely.geometry import LineString
+
+        gpkg = tmp_path / "lines.gpkg"
+        gpd.GeoDataFrame(geometry=[LineString([(0, 0), (1, 1)])], crs=3400).to_file(gpkg, layer="seed_lines")
         tool_args = [
-            {
-                "name": "Input raster",
-                "description": "Input raster",
-                "variable": "in_raster",
-                "parameter_type": {"ExistingFile": ["raster"]},
-                "optional": False,
-                "default_value": "",
-                "saved_value": str(existing),
-                "output": False,
-            },
             {
                 "name": "Input line",
                 "description": "Input vector",
@@ -836,18 +827,46 @@ class TestToolWidgetsAdvancedVisibility:
                 "parameter_type": {"ExistingFile": ["vector"]},
                 "optional": False,
                 "default_value": "",
-                "saved_value": f"{missing_vector}|seed_lines",
+                "saved_value": f"{gpkg}|seed_lines_vo",
                 "output": False,
             },
         ]
 
-        tw = ToolWidgets("Startup history", tool_args, show_advanced=True)
+        tw = ToolWidgets("Missing layer", tool_args, show_advanced=True)
         qtbot.addWidget(tw)
-        tw.clear_missing_inputs()
+        widget = tw.widget_list[0]
 
-        raster, line = tw.widget_list
-        assert raster.in_file.text() == str(existing)
-        assert line.value == {"path": "", "layer": ""}
-        assert line.in_file.text() == ""
-        assert line.missing_input_error == ""
-        assert line.in_file.styleSheet() == ""
+        assert widget.value == {"path": str(gpkg), "layer": "seed_lines_vo"}
+        assert widget.layer_combo.currentText() == "seed_lines_vo"
+        assert "seed_lines_vo" in widget.missing_input_error
+        assert widget.in_file.styleSheet()
+        assert widget.layer_combo.styleSheet()
+        assert tw.get_widgets_arguments() is None
+
+        # choosing a layer that exists clears the flag
+        widget.layer_combo.setCurrentIndex(widget._find_layer_index_by_name("seed_lines"))
+        assert widget.missing_input_error == ""
+        assert widget.in_file.styleSheet() == ""
+        assert widget.layer_combo.styleSheet() == ""
+        assert tw.get_widgets_arguments() == {"in_line": f"{gpkg}|seed_lines"}
+
+    def test_no_history_starts_with_empty_paths(self, qtbot):
+        tool_args = [
+            {
+                "name": "Input line",
+                "description": "Input vector",
+                "variable": "in_line",
+                "parameter_type": {"ExistingFile": ["vector"]},
+                "optional": False,
+                "default_value": "",
+                "output": False,
+            },
+        ]
+
+        tw = ToolWidgets("No history", tool_args, show_advanced=True)
+        qtbot.addWidget(tw)
+        widget = tw.widget_list[0]
+
+        assert widget.in_file.text() == ""
+        assert widget.missing_input_error == ""
+        assert widget.in_file.styleSheet() == ""

@@ -414,7 +414,45 @@ class TestFeatureBuffer:
 
 
 class TestMissingParams:
-    def test_defaults_provide_initial_arguments(self, make_tool_widget):
+    def _fill_check_seed_lines(self, tw, testdata_dir, tmp_path):
+        _set_widget_values(
+            tw,
+            {
+                "in_line": {"path": str(testdata_dir / "seed_lines_aoi.gpkg"), "layer": "seed_lines"},
+                "in_raster": str(testdata_dir / "chm_aoi.tif"),
+                "out_line": {"path": str(tmp_path / "out.gpkg"), "layer": "checked"},
+            },
+        )
+
+    def test_empty_required_paths_are_rejected(self, make_tool_widget):
         tw = make_tool_widget("Check Seed Lines")
-        args = tw.get_widgets_arguments()
-        assert args is not None
+        # set explicitly: the form may start with saved paths from the user's settings
+        _find_widget(tw, "in_line").set_value({"path": "", "layer": ""})
+        _find_widget(tw, "out_line").set_value({"path": "", "layer": ""})
+        assert tw.get_widgets_arguments() is None
+
+    def test_filled_required_paths_are_accepted(self, make_tool_widget, testdata_dir, tmp_path):
+        tw = make_tool_widget("Check Seed Lines")
+        self._fill_check_seed_lines(tw, testdata_dir, tmp_path)
+        assert tw.get_widgets_arguments() is not None
+
+    def test_empty_required_input_is_rejected(self, make_tool_widget, testdata_dir, tmp_path):
+        tw = make_tool_widget("Check Seed Lines")
+        self._fill_check_seed_lines(tw, testdata_dir, tmp_path)
+        _find_widget(tw, "in_line").set_value({"path": "", "layer": ""})
+        assert tw.get_widgets_arguments() is None
+
+    def test_empty_required_output_path_is_rejected(self, make_tool_widget, testdata_dir, tmp_path):
+        tw = make_tool_widget("Check Seed Lines")
+        self._fill_check_seed_lines(tw, testdata_dir, tmp_path)
+        # a layer without a path encodes as "|checked", which must still count as empty
+        _find_widget(tw, "out_line").set_value({"path": "", "layer": "checked"})
+        assert tw.get_widgets_arguments() is None
+
+    def test_empty_optional_field_is_accepted(self, make_tool_widget, testdata_dir, tmp_path):
+        tw = make_tool_widget("Check Seed Lines")
+        self._fill_check_seed_lines(tw, testdata_dir, tmp_path)
+        in_raster = _find_widget(tw, "in_raster")
+        assert in_raster.optional
+        in_raster.set_value("")
+        assert tw.get_widgets_arguments() is not None

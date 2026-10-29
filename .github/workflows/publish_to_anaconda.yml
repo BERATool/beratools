@@ -53,6 +53,15 @@ jobs:
           printf '### Publishing source\n\n- Mode: `%s`\n- Tag: `%s`\n- Source commit: `%s`\n- Workflow commit: `%s`\n' \
             "$mode" "${tag:-none}" "$source_sha" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
 
+      # Build the tagged source with the recipe from the dispatched commit, so packaging
+      # fixes can be released for an existing tag without moving it.
+      - name: Use recipe from workflow commit
+        if: steps.source.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          git checkout "$GITHUB_SHA" -- packaging/recipe.yaml
+          printf -- '- Recipe commit: `%s`\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
       # Disable Pixi cache to avoid pixi.lock lookup
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@v0.8.1

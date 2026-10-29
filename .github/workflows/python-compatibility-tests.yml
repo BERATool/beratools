@@ -36,7 +36,7 @@ jobs:
             dask
             gdal>=3.12,<4
             geopandas
-            pandas>=2.0,<3.0
+            pandas
             networkit
             numpy>=1.26,<2.4
             pandas
@@ -46,13 +46,13 @@ jobs:
             scikit-image>=0.24
             tqdm
             xarray-spatial
-            pandarallel
             python-igraph
             tabulate
             pip
             pytest
             pytest-qt
             tox
+            psutil
           condarc: |
             channel_priority: strict
             channels:

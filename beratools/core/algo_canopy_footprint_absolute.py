@@ -59,6 +59,7 @@ class CanopyFootprintRequest:
     footprint_simplify_length: float = 0.5
     smooth_footprint_polygon: bool = False
     footprint_polygon_smooth_iterations: int = 1
+    merge_by_original_line: bool = False
 
 
 @dataclass
@@ -95,6 +96,7 @@ def cast_request_types(request: CanopyFootprintRequest) -> CanopyFootprintReques
     request.footprint_simplify_length = float(request.footprint_simplify_length)
     request.smooth_footprint_polygon = _to_bool(request.smooth_footprint_polygon)
     request.footprint_polygon_smooth_iterations = int(request.footprint_polygon_smooth_iterations)
+    request.merge_by_original_line = _to_bool(request.merge_by_original_line)
 
     return request
 
@@ -109,6 +111,28 @@ def _to_bool(value):
         if lowered in {"false", "0", "no", "n", "off"}:
             return False
     return bool(value)
+
+
+def copy_line_ids(footprint, line):
+    """Carry the source line's OLnFID/OLnSEG onto its footprint, so footprints can be merged per line."""
+    if footprint is None or line is None:
+        return footprint
+    for field in ("OLnFID", "OLnSEG"):
+        if field in line.columns:
+            footprint[field] = line[field].iloc[0]
+    return footprint
+
+
+def merge_footprints_by_original_line(footprints_gdf, printer=print):
+    """Dissolve footprints sharing an OLnFID into one, as the centerline tool merges lines."""
+    if footprints_gdf is None or footprints_gdf.empty:
+        return footprints_gdf
+    if "OLnFID" not in footprints_gdf.columns:
+        printer("[Warning]: OLnFID not found in input lines; footprints are not merged.")
+        return footprints_gdf
+    merged = footprints_gdf.dissolve(by="OLnFID", as_index=False)
+    merged["OLnSEG"] = -1
+    return merged
 
 
 def process_footprint_polygon_gdf(
@@ -412,6 +436,7 @@ class LineInfo:
         # Transfer group value to footprint if present
         if bt_const.BT_GROUP in self.line.columns:
             self.footprint[bt_const.BT_GROUP] = self.line[bt_const.BT_GROUP].iloc[0]
+        copy_line_ids(self.footprint, self.line)
 
     def _build_rings_with_percentiles(self):
         self.prepare_ring_buffer()
@@ -839,6 +864,7 @@ class FootprintCanopyAbsolute:
             smooth_footprint_polygon=self.smooth_footprint_polygon,
             footprint_polygon_smooth_iterations=self.footprint_polygon_smooth_iterations,
         )
+        copy_line_ids(self.footprint, self.line_seg)
         self.postprocess_output(
             corridor_thresh,
             raster["out_transform"],

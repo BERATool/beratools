@@ -11,6 +11,13 @@ import pytest
 
 sys.path.insert(0, Path(__file__).parents[1].as_posix())
 
+# Unactivated conda envs on Windows (e.g. IDE runners) lack Library\bin on PATH,
+# so MKL fails to load its runtime DLLs and numpy crashes with 0xC06D007F.
+_conda_bin = Path(sys.prefix, "Library", "bin")
+if sys.platform == "win32" and _conda_bin.is_dir():
+    if str(_conda_bin).lower() not in os.environ.get("PATH", "").lower():
+        os.environ["PATH"] = f"{_conda_bin}{os.pathsep}{os.environ.get('PATH', '')}"
+
 
 def pytest_configure(config):
     # Ignore the FutureWarning for the specific warning from osgeo.osr
@@ -60,6 +67,7 @@ def tool_arguments_integration(testdata_dir, available_cpu_cores):
             "in_raster": testdata_dir.joinpath("chm_aoi.tif").as_posix(),
             "line_radius": 15,
             "proc_segments": True,
+            "merge_by_original_line": True,
             "out_line": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|centerline",
             "chm_mode": "current",
             "centerline_method": "astar"
@@ -160,6 +168,7 @@ def tool_arguments_workflow(testdata_dir, available_cpu_cores):
             "in_raster": testdata_dir.joinpath("chm_aoi.tif").as_posix(),
             "line_radius": 15,
             "proc_segments": True,
+            "merge_by_original_line": True,
             "out_line": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|centerline",
         },
         "args_centerline_pairwise": {
