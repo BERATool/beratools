@@ -74,9 +74,9 @@ For an Anaconda release:
 2. Optionally dispatch the workflow without a version tag to test the selected branch's current commit.
 3. Confirm the version is absent from Anaconda.
 4. Dispatch the workflow from `main` and enter the chosen tag in **Version tag to publish**.
-5. Confirm the build and smoke test pass and the package appears on [Anaconda BERA Tools](https://anaconda.org/appliedgrg/beratools).
+5. Confirm the build and smoke test pass and the package appears on [Anaconda BERA Tools](https://anaconda.org/beratools/beratools).
 
-The workflow builds the tagged recipe, installs the resulting package into a separate smoke-test environment, checks its version and CLI, and runs the tagged processing integration test before uploading. The upload targets the existing AppliedGRG Anaconda account. A successful dry run uploads a GitHub Actions artifact, not an Anaconda package. Check the source summary for `release` mode and the **Upload to Anaconda.org** step for actual publication.
+The workflow builds the tagged recipe, installs the resulting package into a separate smoke-test environment, checks its version and CLI, and runs the tagged processing integration test before uploading. The upload targets the `beratools` Anaconda account. A successful dry run uploads a GitHub Actions artifact, not an Anaconda package. Check the source summary for `release` mode and the **Upload to Anaconda.org** step for actual publication.
 
 ## Windows Installer Signing
 
@@ -170,6 +170,6 @@ After any portal or artifact-configuration change, run the manual signing test. 
 
 ## Releases
 
-[Anaconda BERA Tools](https://anaconda.org/appliedgrg/beratools)
+[Anaconda BERA Tools](https://anaconda.org/beratools/beratools)
 
 [PyPI BERA Tools](https://pypi.org/project/BERATools)

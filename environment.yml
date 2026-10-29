@@ -4,7 +4,7 @@
 channels:
   - nodefaults
   - conda-forge
-  - appliedgrg
+  - beratools
 dependencies:
   - python>=3.12,<3.14
   - dask

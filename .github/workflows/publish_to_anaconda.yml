@@ -104,8 +104,8 @@ jobs:
         run: |
           set -euo pipefail
           echo "🏗️ Building version: $VERSION"
-          echo "📌 Using channels: appliedgrg, conda-forge"
-          rattler-build build -c appliedgrg -c conda-forge
+          echo "📌 Using channels: beratools, conda-forge"
+          rattler-build build -c beratools -c conda-forge
           echo "Build complete. Outputs under ./output"
 
       - name: Collect artifacts to ./dist/conda
@@ -186,7 +186,7 @@ jobs:
           echo "🚀 Uploading ${files[0]}"
           # Pixi exposes `binstar` (not `anaconda`). Use --label (not --channel).
           binstar -t "$ANACONDA_API_TOKEN" upload --fail "${files[0]}" \
-            --user appliedgrg --label main
+            --user beratools --label main
 
           echo "🎉 Upload complete!"
 
