@@ -140,7 +140,7 @@ Open **Projects -> beratools -> Signing policies** in SignPath to review policy 
 | Allowed build definition | `.github/workflows/build-win-installer.yml` | `.github/workflows/build-win-installer.yml` |
 | Result | Actions artifact only | Approved GitHub Release |
 
-For `release-signing`, require trusted-build-system verification and origin verification. Set the repository URL to `https://github.com/appliedgrg/beratools.git`, the allowed branch to `main`, and the allowed build definition to `.github/workflows/build-win-installer.yml`.
+For `release-signing`, require trusted-build-system verification and origin verification. Set the repository URL to `https://github.com/BERATool/beratools.git`, the allowed branch to `main`, and the allowed build definition to `.github/workflows/build-win-installer.yml`.
 
 Release signing is dispatched from `main`, while the source is checked out at the validated tag. SignPath obtains origin metadata from GitHub's run context. When enabling signing after the portal update, test an older-tag build and inspect the signing request's origin alongside the recorded source SHA and workflow SHA. Verify that the connector and signing policy accept the intended tagged source; do not assume the dispatched `main` SHA is the source SHA of an older release.
 
