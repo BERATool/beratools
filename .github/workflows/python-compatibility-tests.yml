@@ -56,7 +56,7 @@ jobs:
           condarc: |
             channel_priority: strict
             channels:
-              - beratools
+              - bera_tools
               - conda-forge
           cache-environment: true
 

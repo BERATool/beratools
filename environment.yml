@@ -4,7 +4,7 @@
 channels:
   - nodefaults
   - conda-forge
-  - beratools
+  - bera_tools
 dependencies:
   - python>=3.12,<3.14
   - dask

@@ -1,6 +1,6 @@
 [workspace]
 authors = ["Richard <502763+RichardQZeng@users.noreply.github.com>"]
-channels = ["nodefaults", "beratools", "conda-forge"]
+channels = ["nodefaults", "bera_tools", "conda-forge"]
 description = "BERA Tools is toolset to extract and assess line features in forest"
 name = "bera"
 platforms = ["win-64", "linux-64"]
