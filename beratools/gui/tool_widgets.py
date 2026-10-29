@@ -80,7 +80,8 @@ class ToolWidgets(QtWidgets.QWidget):
                 param_missing = True
                 continue
             v = widget.get_value()
-            if v:
+            # get_value() returns {variable: ""} for an empty field, which is truthy
+            if v and (widget.optional or not self._is_empty_value(widget, v.get(widget.variable))):
                 args.update(v)
             else:
                 print(f"[Missing argument]: {widget.name} not specified.", "missing")
@@ -189,7 +190,13 @@ class ToolWidgets(QtWidgets.QWidget):
             self.widget_list.append(widget)
 
         self._configure_widget_dependencies()
-        self._clear_output_paths_for_missing_input_history()
+
+    @classmethod
+    def _is_empty_value(cls, widget, value):
+        # an output with a layer but no path encodes as "|layer", so check the path itself
+        if isinstance(widget, FileSelector):
+            return not cls._extract_file_selector_path(value)
+        return value is None or value == ""
 
     @staticmethod
     def _extract_file_selector_path(value):
@@ -200,34 +207,6 @@ class ToolWidgets(QtWidgets.QWidget):
         if isinstance(value, str):
             return value
         return ""
-
-    def _clear_output_paths_for_missing_input_history(self):
-        missing_input_paths = set()
-
-        for widget in self.widget_list:
-            if not isinstance(widget, FileSelector) or widget.output:
-                continue
-            if widget.missing_input_error:
-                missing_input_paths.add(self._extract_file_selector_path(widget.value))
-
-        if not missing_input_paths:
-            return
-
-        for widget in self.widget_list:
-            if not isinstance(widget, FileSelector) or not widget.output:
-                continue
-            current_path = widget.value.get("path", "") if widget.is_vector else widget.value
-            if current_path in missing_input_paths:
-                if widget.is_vector:
-                    widget.set_value({"path": "", "layer": ""})
-                else:
-                    widget.set_value("")
-
-    def clear_missing_inputs(self):
-        """Empty input paths that don't exist, so stale history shows blank fields instead of flagged ones."""
-        for widget in self.widget_list:
-            if isinstance(widget, FileSelector) and widget.missing_input_error:
-                widget.set_value({"path": "", "layer": ""} if widget.is_vector else "")
 
     def update_widgets(self, values_dict):
         for key, value in values_dict.items():
@@ -603,17 +582,8 @@ class FileSelector(QtWidgets.QWidget):
             # Input: keep a saved file that no longer exists; it is flagged in the form
             if not Path(path).exists():
                 return
-            elif ext == "gpkg":
-                try:
-                    layers_dict = get_layers(path)
-                    if layer:
-                        valid_layers = [str(k) for k in layers_dict.keys()]
-                        if layer not in valid_layers:
-                            self.value = {"path": "", "layer": ""}
-                            print(f"[Error] Invalid Layer: Layer '{layer}' not found in file: {path}")
-                except Exception:
-                    self.value = {"path": "", "layer": ""}
-                    print(f"[Error] Layer Error: Could not load layers from file: {path}")
+            elif ext == "gpkg" and layer and self._missing_gpkg_layer(path, layer):
+                print(f"[Error] Invalid Layer: Layer '{layer}' not found in file: {path}")
 
     def setup_ui(self):
         self.layout = QtWidgets.QHBoxLayout()
@@ -649,13 +619,13 @@ class FileSelector(QtWidgets.QWidget):
                 for layer_name, geometry_type in layers_dict.items():
                     self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
                 self.layer_combo.setVisible(True)
-                if requested_layer:
-                    index = self._find_layer_index_by_name(requested_layer)
-                    if index >= 0:
-                        self.layer_combo.setCurrentIndex(index)
-                        self.value["layer"] = requested_layer
+                index = self._find_layer_index_by_name(requested_layer)
+                if index >= 0:
+                    self.layer_combo.setCurrentIndex(index)
                 self.layer_combo.blockSignals(False)
-                self.set_layer(self.layer_combo.currentText())
+                # a saved layer that's gone is kept, not swapped for the first one
+                if index >= 0 or not requested_layer:
+                    self.set_layer(self.layer_combo.currentText())
             except Exception:
                 self.layer_combo.blockSignals(False)
                 self.layer_combo.clear()
@@ -707,19 +677,38 @@ class FileSelector(QtWidgets.QWidget):
         self.in_file.setStyleSheet("")
         self.in_file.setToolTip(self.description)
 
+    @staticmethod
+    def _missing_gpkg_layer(path, layer):
+        try:
+            return layer not in {str(k) for k in get_layers(path).keys()}
+        except Exception:
+            return True
+
     def _update_missing_input_warning(self):
-        """Flag an input path that doesn't exist, keeping it so it can be seen and fixed."""
+        """Flag an input path or layer that doesn't exist, keeping it so it can be seen and fixed."""
         path = self.value.get("path", "") if self.is_vector else self.value
+        layer = self.value.get("layer", "") if self.is_vector else ""
         was_missing = bool(self.missing_input_error)
-        if path and isinstance(path, str) and not self.output and not Path(path).exists():
-            kind = "Folder" if self.is_directory else "File"
-            self.missing_input_error = f"{kind} not found: {path}"
-            self.in_file.setStyleSheet("QLineEdit { background-color: #f8d7da; }")
-            self.in_file.setToolTip(self.missing_input_error)
-            return
+        if path and isinstance(path, str) and not self.output:
+            if not Path(path).exists():
+                kind = "Folder" if self.is_directory else "File"
+                self.missing_input_error = f"{kind} not found: {path}"
+            elif layer and path.lower().endswith(".gpkg") and self._missing_gpkg_layer(path, layer):
+                self.missing_input_error = f"Layer '{layer}' not found in: {path}"
+                self.layer_combo.setStyleSheet("QComboBox { background-color: #f8d7da; }")
+                self.layer_combo.setToolTip(self.missing_input_error)
+            else:
+                self.missing_input_error = ""
+            if self.missing_input_error:
+                self.in_file.setStyleSheet("QLineEdit { background-color: #f8d7da; }")
+                self.in_file.setToolTip(self.missing_input_error)
+                return
 
         self.missing_input_error = ""
         if was_missing:
+            if not self.output:
+                self.layer_combo.setStyleSheet("")
+                self.layer_combo.setToolTip("Select layer")
             if self.input_geometry_error:
                 self.in_file.setToolTip(self.input_geometry_error)
             else:
@@ -802,8 +791,13 @@ class FileSelector(QtWidgets.QWidget):
                     self.layer_combo.setCurrentText(selected_layer)
                 else:
                     index = self._find_layer_index_by_name(selected_layer)
-                    if index >= 0:
-                        self.layer_combo.setCurrentIndex(index)
+                    if index < 0 and not is_output and self._loading:
+                        # keep a saved layer that's gone so it is flagged instead of silently replaced
+                        if self.layer_combo.itemText(0) == self.NO_COMPATIBLE_LAYER_TEXT:
+                            self.layer_combo.clear()
+                        self.layer_combo.insertItem(0, selected_layer)
+                        index = 0
+                    self.layer_combo.setCurrentIndex(index)
             self.layer_combo.adjustSize()
             self._update_layer_overwrite_warning()
             if self.is_vector and not is_output:
@@ -1174,6 +1168,8 @@ class FileSelector(QtWidgets.QWidget):
         else:
             self.selected_layer = layer
         self._update_layer_overwrite_warning()
+        if not self.output:
+            self._update_missing_input_warning()
 
     def get_value(self):
         #Return the folder directly:

@@ -29,7 +29,7 @@ classifiers = [
 dependencies = [
     "gdal>=3.12,<4; platform_system != 'Windows'",
     "geopandas",
-    "pandas>=2.0,<3",
+    "pandas>=2.0",
     "networkit",
     "numpy>=1.26,<2.4",
     "pyogrio>=0.12.0",
@@ -39,8 +39,8 @@ dependencies = [
     "tabulate",
     "tqdm",
     "xarray-spatial",
-    "pandarallel",
     "igraph",
+    "psutil"
 ]
 
 [project.optional-dependencies]

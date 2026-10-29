@@ -1421,3 +1421,47 @@ def test_schema_centerline_exposes_guided_strategy_parameter():
     assert simplify_diameter["depends_on"]["variable"] == "simplify_centerline"
     assert simplify_diameter["depends_on"]["condition"] is True
     assert simplify_diameter["depends_on"]["mode"] == "inline"
+
+
+def test_check_seed_line_numbers_split_pieces_along_each_line(tmp_path, monkeypatch):
+    # two crossing lines are split at the crossing into four pieces
+    in_gpkg = _write_seed_input(
+        tmp_path,
+        [LineString([(0.0, 50.0), (100.0, 50.0)]), LineString([(50.0, 0.0), (50.0, 100.0)])],
+    )
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
+    no_issues = {
+        "short_line": 0,
+        "close_vertices": 0,
+        "unsnapped_endpoint": 0,
+        "self_crossing": 0,
+        "overlap": 0,
+        "total": 0,
+    }
+    monkeypatch.setattr(acsl_report, "generate_qc_report", lambda gdf, *_args, **_kwargs: (None, no_issues))
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=False,
+        remove_short_lines=False,
+        preclean_vertices=False,
+        snap_close_endpoints=False,
+        group_lines=False,
+        densify_long_lines=False,
+        apply_seed_line_correction=False,
+    )
+
+    out = gpd.read_file(out_gpkg, layer="seed_checked")
+    assert len(out) == 4
+    for _, group in out.groupby("OLnFID"):
+        group = group.sort_values("OLnSEG")
+        assert group["OLnSEG"].tolist() == [0, 1]
+        # segment 1 starts where segment 0 ends
+        first, second = group.geometry.tolist()
+        assert Point(first.coords[-1]).distance(Point(second.coords[0])) < 1e-6

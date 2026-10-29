@@ -1,10 +1,10 @@
 import math
 import os.path
+from functools import partial
 from multiprocessing.pool import Pool
 from pathlib import Path
 
 import pandas as pd
-from pandarallel import pandarallel
 
 from beratools.core.constants import *
 from beratools.tools.common import *
@@ -14,6 +14,39 @@ from beratools.core.tool_base import parallel_mode
 
 class OperationCancelledException(Exception):
     pass
+
+
+def multiringbuffer(geom, nrings: int, ringdist: int) -> list:
+    """
+    Buffers an input geometry nring (number of rings) times, with a distance between
+    rings of ringdist and returns a list of non overlapping buffers
+    """
+    import numpy as np
+    rings = []  # A list to hold the individual buffers
+    for ring in np.arange(0, ringdist, nrings):  # For each ring (1, 2, 3, ..., nrings)
+        big_ring = geom.buffer(
+            nrings + ring, single_sided=True, cap_style="flat"
+        )  # Create one big buffer
+        small_ring = geom.buffer(
+            ring, single_sided=True, cap_style="flat"
+        )  # Create one smaller one
+        the_ring = big_ring.difference(small_ring)  # Difference the big with the small to create a ring
+        if (
+            ~shapely.is_empty(the_ring)
+            or ~shapely.is_missing(the_ring)
+            or not None
+            or ~the_ring.area == 0
+        ):
+            if isinstance(the_ring, shapely.MultiPolygon) or isinstance(the_ring, shapely.Polygon):
+                rings.append(the_ring)  # Append the ring to the rings list
+            else:
+                if isinstance(the_ring, shapely.GeometryCollection):
+                    for i in range(0, len(the_ring.geoms)):
+                        if not isinstance(the_ring.geoms[i], shapely.LineString):
+                            rings.append(the_ring.geoms[i])
+        print(" {}% ".format((ring / ringdist) * 100))
+
+    return rings  # return the list
 
 
 def main_canopy_threshold_relative(
@@ -92,46 +125,19 @@ def main_canopy_threshold_relative(
 
     print("Create ring buffer for input line to find the forest edge....")
 
-    def multiringbuffer(df: gpd.GeoDataFrame,
-                        nrings:int,
-                        ringdist:int)->list:
-        """
-        Buffers an input dataframes geometry nring (number of rings) times, with a distance between
-        rings of ringdist and returns a list of non overlapping buffers
-        """
-        import numpy as np
-        rings = []  # A list to hold the individual buffers
-        for ring in np.arange(0, ringdist, nrings):  # For each ring (1, 2, 3, ..., nrings)
-            big_ring = df["geometry"].buffer(
-                nrings + ring, single_sided=True, cap_style="flat"
-            )  # Create one big buffer
-            small_ring = df["geometry"].buffer(
-                ring, single_sided=True, cap_style="flat"
-            )  # Create one smaller one
-            the_ring = big_ring.difference(small_ring)  # Difference the big with the small to create a ring
-            if (
-                ~shapely.is_empty(the_ring)
-                or ~shapely.is_missing(the_ring)
-                or not None
-                or ~the_ring.area == 0
-            ):
-                if isinstance(the_ring, shapely.MultiPolygon) or isinstance(the_ring, shapely.Polygon):
-                    rings.append(the_ring)  # Append the ring to the rings list
-                else:
-                    if isinstance(the_ring, shapely.GeometryCollection):
-                        for i in range(0, len(the_ring.geoms)):
-                            if not isinstance(the_ring.geoms[i], shapely.LineString):
-                                rings.append(the_ring.geoms[i])
-            print(" {}% ".format((ring / ringdist) * 100))
-
-        return rings  # return the list
-
     # Create a column with the rings as a list
-    print("Create rings buffer to forest edge on one side....")
-    pandarallel.initialize(progress_bar=False,nb_workers=processes)
-    worklnbuffer_df_l_ring["mgeometry"] = worklnbuffer_df_l_ring.parallel_apply(
-        lambda x: multiringbuffer(df=x, nrings=1, ringdist=15), axis=1
-    )
+    print("Create rings buffer to forest edge on both side of centerlines....")
+    with Pool(processes) as pool:
+        worklnbuffer_df_l_ring["mgeometry"] = pool.map(
+            partial(multiringbuffer, nrings=1, ringdist=15),
+            worklnbuffer_df_l_ring.geometry,
+            chunksize=max(1, len(worklnbuffer_df_l_ring) // (processes * 4)),
+        )
+        worklnbuffer_df_r_ring["mgeometry"] = pool.map(
+            partial(multiringbuffer, nrings=-1, ringdist=-15),
+            worklnbuffer_df_r_ring.geometry,
+            chunksize=max(1, len(worklnbuffer_df_r_ring) // (processes * 4)),
+        )
 
     # Explode to create a row for each ring
     worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.explode("mgeometry")
@@ -142,12 +148,6 @@ def main_canopy_threshold_relative(
     worklnbuffer_df_l_ring["iRing"] = worklnbuffer_df_l_ring.groupby(["OLnFID", "OLnSEG"]).cumcount()
     worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
     worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.reset_index(drop=True)
-
-    print("Create rings buffer to forest edge on the other side....")
-    pandarallel.initialize(progress_bar=False, nb_workers=processes)
-    worklnbuffer_df_r_ring["mgeometry"] = worklnbuffer_df_r_ring.parallel_apply(
-        lambda x: multiringbuffer(df=x, nrings=-1, ringdist=-15), axis=1
-    )
 
     worklnbuffer_df_r_ring = worklnbuffer_df_r_ring.explode("mgeometry")  # Explode to create a row for each ring
     worklnbuffer_df_r_ring = worklnbuffer_df_r_ring.set_geometry("mgeometry")

@@ -697,6 +697,10 @@ def check_seed_line(
     gdf = _ensure_gdf(split_out, prev_crs)
     split_min_length = config.minimum_line_length if config.remove_short_lines else bt_const.SMALL_BUFFER
     gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, split_min_length)
+    # pieces keep their line's OLnSEG, so number them along each original line
+    if "OLnFID" in gdf.columns and "OLnSEG" in gdf.columns:
+        gdf = gdf.sort_values(["OLnFID", "OLnSEG"], kind="stable").reset_index(drop=True)
+        gdf["OLnSEG"] = gdf.groupby("OLnFID").cumcount()
     gdf = gdf.reset_index(drop=True)
     _log_step(
         8, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps

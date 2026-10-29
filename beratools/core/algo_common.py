@@ -372,16 +372,45 @@ def lines_gdf_to_list(gdf):
     return out_list
 
 
-def prepare_lines_gdf(file_path, layer=None, proc_segments=True):
+# remember which input row (and its OLnSEG) each processed piece came from
+SOURCE_ROW_FIELD = "BT_SRC_ROW"
+SOURCE_SEG_FIELD = "BT_SRC_SEG"
+
+
+def keep_source_seg(gdf):
+    """Remember each row's OLnSEG before split_lines_to_segments renumbers it per vertex."""
+    if gdf is not None and "OLnSEG" in gdf.columns:
+        gdf = gdf.copy()
+        gdf[SOURCE_SEG_FIELD] = gdf["OLnSEG"]
+    return gdf
+
+
+def restore_source_seg(gdf):
+    """Put back the OLnSEG saved by keep_source_seg once the segments are merged into their rows."""
+    if gdf is not None and SOURCE_SEG_FIELD in gdf.columns:
+        gdf = gdf.copy()
+        gdf["OLnSEG"] = gdf[SOURCE_SEG_FIELD]
+        gdf = gdf.drop(columns=SOURCE_SEG_FIELD)
+    return gdf
+
+
+def prepare_lines_gdf(file_path, layer=None, proc_segments=True, tag_source_rows=False):
     """
     Split lines at vertices or return original rows.
 
-    It handles for MultiLineString.
+    It handles for MultiLineString. With tag_source_rows, OLnFID/OLnSEG are added if missing
+    and each row records its input row and OLnSEG, so pieces can be merged back to it.
 
     """
     gdf = read_geospatial_file(file_path, layer=layer)
     if gdf is None:
         return []
+
+    if tag_source_rows:
+        gdf, _ = chk_df_multipart(gdf, "LineString")
+        gdf = gdf.reset_index(drop=True)
+        gdf[SOURCE_ROW_FIELD] = gdf.index
+        gdf[SOURCE_SEG_FIELD] = gdf["OLnSEG"]
 
     if proc_segments:
         return split_lines_to_segments(gdf)

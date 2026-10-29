@@ -57,8 +57,16 @@ The **Pipeline** tab, next to **Tool history** in the GUI, chains tools into ste
 another. Drag tools in from the tool tree, set each step's parameters in the tool form, and link a
 step's inputs to an earlier step's output. Each input links to the latest earlier step that makes what
 it needs, for example the checked lines from **Check Seed Lines** into **Centerline**, and the
-links are reset whenever a step is added, moved or removed. Pipelines save as `.json` files and also
-run without the GUI:
+links are reset whenever a step is added, moved or removed.
+
+![BERA Tools Pipeline panel](docs/files/screenshots/bt_pipeline.png)
+
+The example above chains the six mapping tools into a ground footprint workflow. Each step lists the
+step it reads from (`← step 5`), and the selected step's linked inputs are shown under
+**Inputs from earlier steps** and greyed out in the tool form. Use **Run Pipeline** to run all steps
+in order.
+
+Pipelines save as `.json` files and also run without the GUI:
 
 ```bash
 $ python -m beratools.core.pipeline my_pipeline.json --processes 4

@@ -487,13 +487,24 @@
             {
               "variable": "proc_segments",
               "label": "Process Segments",
-              "description": "Process each segment between vertices separately",
+              "description": "Process each segment between vertices separately, then merge the segments back into one centerline per input line",
               "type": "list",
               "subtype": "bool",
               "data": [true, false],
               "default": true,
               "output": false,
               "optional": false
+            },
+            {
+              "variable": "merge_by_original_line",
+              "label": "Merge by Original Line",
+              "description": "Merge centerlines that share an original line ID (OLnFID) into one line, e.g. lines split at intersections by Check Seed Lines",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
+              "optional": true
             },
             {
               "variable": "centerline_method",
@@ -891,6 +902,17 @@
               }
             },
             {
+              "variable": "merge_by_original_line",
+              "label": "Merge by Original Line",
+              "description": "Merge footprints that share an original line ID (OLnFID) into one feature, e.g. lines split at intersections by Check Seed Lines",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
+              "optional": true
+            },
+            {
               "variable": "out_footprint",
               "produces": {
                 "footprint": []
@@ -978,6 +1000,17 @@
               "subtype": "vector",
               "default": "",
               "output": true,
+              "optional": true
+            },
+            {
+              "variable": "merge_by_original_line",
+              "label": "Merge by Original Line",
+              "description": "Merge footprints and centerlines that share an original line ID (OLnFID) into one feature, e.g. lines split at intersections by Check Seed Lines",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
               "optional": true
             },
             {
@@ -1111,6 +1144,17 @@
               "subtype": "bool",
               "data": [true, false],
               "default": true,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "merge_by_original_line",
+              "label": "Merge by Original Line",
+              "description": "Merge lines and footprints that share an original line ID (OLnFID) into one feature, e.g. lines split at intersections by Check Seed Lines",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
               "output": false,
               "optional": true
             },

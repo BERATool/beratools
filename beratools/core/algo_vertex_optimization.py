@@ -442,7 +442,7 @@ class VertexGrouping:
                 self.min_segment_length,
                 self.angle_tol,
             )
-            self.line_list = algo_common.split_lines_to_segments(lines_gdf)
+            self.line_list = algo_common.split_lines_to_segments(algo_common.keep_source_seg(lines_gdf))
         else:
             lines_gdf = algo_common.read_geospatial_file(self.in_line, layer=self.in_layer)
             lines_gdf = algo_vertex_preclean.preclean_vertices(
@@ -518,9 +518,10 @@ class VertexGrouping:
 
         lines = pd.concat(self.line_list, ignore_index=True)
 
-        if self.optimize_internal_vertices and "BT_UID" in lines.columns:
-            lines[bt_const.BT_GROUP] = lines["BT_UID"]
-            lines = algo_merge_lines.run_line_merge(lines, merge_group=True)
+        if self.optimize_internal_vertices and bt_const.BT_UID in lines.columns:
+            # join the segments back into their input rows, keeping each row's BT_GROUP
+            lines = algo_merge_lines.run_line_merge(lines, merge_group=True, group_field=bt_const.BT_UID)
+            lines = algo_common.restore_source_seg(lines)
 
         lines = algo_common.clean_geometries(
             lines,

@@ -37,6 +37,7 @@ from skimage.graph import MCP_Flexible
 from pathlib import Path
 from xrspatial import convolution
 
+import beratools.core.algo_common as algo_common
 from beratools.core.algo_centerline import *
 from beratools.core.canopy_threshold_relative import OperationCancelledException
 from beratools.core.constants import *
@@ -571,7 +572,6 @@ def process_single_line_relative(segment):
             # BERA proposed Binary morphology Shrink
             # fileShrink = ndimage.binary_erosion((Expanded),iterations=Exp_Shk_cell,border_value=1)
         else:
-            print("No Expand And Shrink cell performed.")
 
             file_shrink = raster_class
 
@@ -649,6 +649,7 @@ def main_line_footprint_relative(
     canopy_thresh_percentage:int,
     processes:int,
     debug_mode:bool=BT_DEBUGGING,
+    merge_by_original_line:bool=False,
 )-> None:
     """
     This function take the centerlines with forest canopy height and distance to edge to generate
@@ -665,6 +666,8 @@ def main_line_footprint_relative(
         canopy_avoidance: 0 < Ratio < 1 of importance between canopy search radius and Euclidean distance
         exponent:  Affects the cost of vegetated areas in an exponential fashion
         canopy_thresh_percentage: Percentage as integer range 1-100
+        merge_by_original_line: Merge outputs sharing an OLnFID into one feature, otherwise
+            keep one footprint and centerline per input line (OLnFID, OLnSEG)
 
     Returns:
         New saved footprints and/or with smoothed centerlines dataset(s).
@@ -839,9 +842,13 @@ def main_line_footprint_relative(
     resultsR = resultsR.reset_index(drop=True)
     #
 
+    # one output per input line, or per original line when merging, as in the centerline tool
+    dissolve_keys = ["OLnFID"] if merge_by_original_line else ["OLnFID", "OLnSEG"]
     resultsAll = GeoDataFrame(pd.concat([resultsL, resultsR],ignore_index=True))
-    dissolved_results = resultsAll.dissolve(by="OLnFID", as_index=False)
+    dissolved_results = resultsAll.dissolve(by=dissolve_keys, as_index=False)
     dissolved_results["geometry"] = dissolved_results["geometry"].buffer(-0.005)
+    if merge_by_original_line:
+        dissolved_results["OLnSEG"] = -1
     print("[info]: Saving output ...")
     out_ft_file, layer = decode_file_layer(out_footprint)
     dissolved_results.to_file(out_ft_file, layer=layer)
@@ -855,7 +862,7 @@ def main_line_footprint_relative(
     resultsCR["geometry"] = resultsCR["geometry"].buffer(0.005)
 
     resultsCLR = GeoDataFrame(pd.concat([resultsCL, resultsCR]))
-    resultsCLR = resultsCLR.dissolve(by="OLnFID", as_index=False)
+    resultsCLR = resultsCLR.dissolve(by=dissolve_keys, as_index=False)
     resultsCLR = resultsCLR.sort_values(by=["OLnFID", "OLnSEG"])
     resultsCLR = resultsCLR.reset_index(drop=True)
     resultsCLR["geometry"] = resultsCLR["geometry"].buffer(-0.005)
@@ -863,13 +870,21 @@ def main_line_footprint_relative(
     # save lines to file
     if out_centerline:
         out_cl_file, layer = decode_file_layer(out_centerline)
-        poly_centerline_gpd = find_centerlines(resultsCLR, line_seg, processes)
+        guide_lines = line_seg
+        if merge_by_original_line:
+            # corridor polygons are dissolved per OLnFID, so guide each by all pieces of its original line
+            guide_lines = algo_common.merge_lines_by_original_id(
+                line_seg, group_field="OLnFID", order_field="OLnSEG"
+            ).drop(columns="OLnSEG")
+        poly_centerline_gpd = find_centerlines(resultsCLR, guide_lines, processes)
         poly_gpd = poly_centerline_gpd.copy()
         centerline_gpd = poly_centerline_gpd.copy()
 
         centerline_gpd = centerline_gpd.set_geometry("centerline")
         centerline_gpd = centerline_gpd.drop(columns=["geometry"])
         centerline_gpd.crs = poly_centerline_gpd.crs
+        if merge_by_original_line:
+            centerline_gpd["OLnSEG"] = -1
 
         # save polygons from smooth centerline for debug
         if debug_mode:

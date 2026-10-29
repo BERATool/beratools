@@ -25,6 +25,7 @@ from beratools.core.algo_canopy_footprint_absolute import (
     FootprintCanopyAdaptive,
     cast_request_types,
     generate_absolute_line_class_list,
+    merge_footprints_by_original_line,
     process_single_absolute_line,
     save_aux_layers,
     save_main_footprint,
@@ -63,6 +64,7 @@ def canopy_footprint_abs(
     footprint_simplify_length=0.5,
     smooth_footprint_polygon=False,
     footprint_polygon_smooth_iterations=1,
+    merge_by_original_line=False,
     processes=0,
     call_mode=CallMode.CLI,
     log_level="INFO",
@@ -89,6 +91,7 @@ def canopy_footprint_abs(
             footprint_simplify_length=footprint_simplify_length,
             smooth_footprint_polygon=smooth_footprint_polygon,
             footprint_polygon_smooth_iterations=footprint_polygon_smooth_iterations,
+            merge_by_original_line=merge_by_original_line,
             processes=processes,
             call_mode=call_mode,
             log_level=log_level,
@@ -134,6 +137,10 @@ def canopy_footprint_abs(
 
     for message in result.messages:
         print(message)
+
+    # one footprint per input line, or per original line when merging, as in the centerline tool
+    if request.merge_by_original_line:
+        result.footprints_gdf = merge_footprints_by_original_line(result.footprints_gdf, printer=print)
 
     save_main_footprint(
         result,
