@@ -6,7 +6,7 @@
 [Setup]
 AppName=BERA Tools
 AppPublisher=Applied Geospatial Research Group
-AppPublisherURL=https://www.appliedgrg.ca/
+AppPublisherURL=https://github.com/BERATool/beratools
 AppSupportURL=https://github.com/BERATool/beratools/issues
 AppUpdatesURL=https://github.com/BERATool/beratools/releases/latest
 WizardImageFile=..\beratools\gui\assets\BERA_WizardImage.png
@@ -38,3 +38,6 @@ Name: "{group}\BERA Tools"; Filename: "{app}\beratools.exe"; WorkingDir: "{app}"
 
 [Run]
 Filename: "{app}\beratools.exe"; Description: "Launch BERA Tools"; Flags: nowait postinstall skipifsilent
+
+[Messages]
+WelcomeLabel2=This will install [name/ver] on your computer.%n%n[name] is developed by the Applied Geospatial Research Group as part of the Boreal Ecosystem Recovery and Assessment (BERA) Project.%n%nIt is recommended that you close all other applications before continuing.
