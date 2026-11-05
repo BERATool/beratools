@@ -74,9 +74,9 @@ For an Anaconda release:
 2. Optionally dispatch the workflow without a version tag to test the selected branch's current commit.
 3. Confirm the version is absent from Anaconda.
 4. Dispatch the workflow from `main` and enter the chosen tag in **Version tag to publish**.
-5. Confirm the build and smoke test pass and the package appears on [Anaconda BERA Tools](https://anaconda.org/appliedgrg/beratools).
+5. Confirm the build and smoke test pass and the package appears on [Anaconda BERA Tools](https://anaconda.org/bera_tools/beratools).
 
-The workflow builds the tagged recipe, installs the resulting package into a separate smoke-test environment, checks its version and CLI, and runs the tagged processing integration test before uploading. The upload targets the existing AppliedGRG Anaconda account. A successful dry run uploads a GitHub Actions artifact, not an Anaconda package. Check the source summary for `release` mode and the **Upload to Anaconda.org** step for actual publication.
+The workflow builds the tagged recipe, installs the resulting package into a separate smoke-test environment, checks its version and CLI, and runs the tagged processing integration test before uploading. The upload targets the `bera_tools` Anaconda organization. A successful dry run uploads a GitHub Actions artifact, not an Anaconda package. Check the source summary for `release` mode and the **Upload to Anaconda.org** step for actual publication.
 
 ## Windows Installer Signing
 
@@ -140,7 +140,7 @@ Open **Projects -> beratools -> Signing policies** in SignPath to review policy 
 | Allowed build definition | `.github/workflows/build-win-installer.yml` | `.github/workflows/build-win-installer.yml` |
 | Result | Actions artifact only | Approved GitHub Release |
 
-For `release-signing`, require trusted-build-system verification and origin verification. Set the repository URL to `https://github.com/appliedgrg/beratools.git`, the allowed branch to `main`, and the allowed build definition to `.github/workflows/build-win-installer.yml`.
+For `release-signing`, require trusted-build-system verification and origin verification. Set the repository URL to `https://github.com/BERATool/beratools.git`, the allowed branch to `main`, and the allowed build definition to `.github/workflows/build-win-installer.yml`.
 
 Release signing is dispatched from `main`, while the source is checked out at the validated tag. SignPath obtains origin metadata from GitHub's run context. When enabling signing after the portal update, test an older-tag build and inspect the signing request's origin alongside the recorded source SHA and workflow SHA. Verify that the connector and signing policy accept the intended tagged source; do not assume the dispatched `main` SHA is the source SHA of an older release.
 
@@ -170,6 +170,6 @@ After any portal or artifact-configuration change, run the manual signing test. 
 
 ## Releases
 
-[Anaconda BERA Tools](https://anaconda.org/appliedgrg/beratools)
+[Anaconda BERA Tools](https://anaconda.org/bera_tools/beratools)
 
 [PyPI BERA Tools](https://pypi.org/project/BERATools)
