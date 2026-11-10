@@ -363,7 +363,7 @@ class TestGroundFootprint:
                 "in_line": {"path": str(testdata_dir / "integration_aoi.gpkg"), "layer": "centerline"},
                 "in_footprint": {
                     "path": str(testdata_dir / "integration_aoi.gpkg"),
-                    "layer": "footprint_rel",
+                    "layer": "footprint_abs",
                 },
                 "n_samples": 15,
                 "offset": 30.0,

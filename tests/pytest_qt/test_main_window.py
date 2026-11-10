@@ -585,7 +585,14 @@ class TestToolHistoryPersistence:
         saved_value = 42 if isinstance(target.default_value, int) else 42.0
         target.set_value(saved_value)
 
+        # the form's required in/out files are empty, so get_widgets_arguments() rejects it;
+        # read the raw values instead since only the numeric round trip is under test
         with (
+            patch.object(
+                main_window.tool_widget,
+                "get_widgets_arguments",
+                side_effect=main_window.tool_widget.get_widgets_values,
+            ),
             patch("beratools.gui.bt_gui_main.bt.add_tool_history", side_effect=_add_tool_history),
             patch("beratools.gui.bt_gui_main.bt.save_tool_info"),
             patch.object(bt_data.BTData, "get_saved_tool_params", autospec=True, side_effect=_get_saved),
