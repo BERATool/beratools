@@ -147,10 +147,26 @@ def bera_app():
 # ---------------------------------------------------------------------------
 
 
+TOOL_SEARCH_NAME = "Search tools"  # the accessible name of BTTreeView's search box
+
+
+def tool_search_box(main, timeout=10):
+    """The tool tree's search box, by its accessible name. Not the window's first Edit: which Edit
+    comes first depends on the layout (with the left side in splitters it is the tool form's first
+    input). Nor child_window(title=...): for an Edit, pywinauto matches the title against its text."""
+    end = time.time() + timeout
+    while True:
+        for edit in main.descendants(control_type="Edit"):
+            if edit.element_info.name == TOOL_SEARCH_NAME and edit.is_visible() and edit.is_enabled():
+                return edit
+        if time.time() > end:
+            raise TimeoutError(f"No visible, enabled Edit named {TOOL_SEARCH_NAME!r} in the window")
+        time.sleep(0.2)
+
+
 def select_tool(main, tool_name: str):
     """Select a tool from the tree view using the search box."""
-    search = main.child_window(control_type="Edit", found_index=0)
-    search.wait("visible enabled", timeout=10)
+    search = tool_search_box(main)
     search.set_edit_text("")
     time.sleep(0.3)
     search.set_edit_text(tool_name)

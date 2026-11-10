@@ -79,6 +79,8 @@ class BTTreeView(QtWidgets.QWidget):
         # controls
         self.tool_search = QtWidgets.QLineEdit()
         self.tool_search.setPlaceholderText("Search...")
+        # the name screen readers and UI Automation (the pywinauto GUI tests) know the box by
+        self.tool_search.setAccessibleName("Search tools")
 
         self.tags_model = _SearchProxyModel()
         self.tree_model = QtGui.QStandardItemModel()
