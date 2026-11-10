@@ -66,4 +66,13 @@ jobs:
 
       - name: Run Tests
         shell: bash -el {0}
-        run: tox -e ${{ matrix.toxenv }}
+        env:
+          TOXENV_NAME: ${{ matrix.toxenv }}
+        run: |
+          # tox passes these through (see passenv in tox.ini); fall back to the
+          # env's share/ dirs in case activation did not export them.
+          export PROJ_DATA="${PROJ_DATA:-$CONDA_PREFIX/share/proj}"
+          export GDAL_DATA="${GDAL_DATA:-$CONDA_PREFIX/share/gdal}"
+          echo "PROJ_DATA=$PROJ_DATA"; ls "$PROJ_DATA/proj.db"
+          echo "GDAL_DATA=$GDAL_DATA"
+          tox -e "$TOXENV_NAME"
