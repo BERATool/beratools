@@ -11,7 +11,11 @@ Run:
     pytest tests/pytest_qt/ -v -m gui_qt
 """
 
+import atexit
+import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,6 +23,23 @@ import pytest
 from PyQt5 import QtWidgets
 
 sys.path.insert(0, Path(__file__).parents[2].as_posix())
+
+# The GUI keeps its saved tool parameters, tool history and last folder in ~/.beratools, and
+# fills the forms from them. The tests get an empty home folder of their own, so a value saved
+# while using the GUI (skip_existing set to true, say) doesn't change the forms they check, and
+# the tests don't change the user's settings. It must be set before beratools.gui is imported, as
+# bt_gui_main reads the settings when imported. Path.home() reads USERPROFILE on Windows and HOME
+# elsewhere.
+# resolved: TEMP can be an 8.3 short path (C:/Users/ABCDEF~1/...), which Qt's dialogs report long
+_TEST_HOME = str(Path(tempfile.mkdtemp(prefix="beratools_test_home_")).resolve())
+os.environ["USERPROFILE"] = _TEST_HOME
+os.environ["HOME"] = _TEST_HOME
+atexit.register(shutil.rmtree, _TEST_HOME, ignore_errors=True)
+
+# The widgets are made off screen, so the tests don't flash windows, or tooltips at the mouse (the
+# CPU slider shows its value at the cursor when it changes), on the desktop. Set QT_QPA_PLATFORM
+# (to "windows", say) to watch them on screen. It must be set before the QApplication is made.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from beratools.gui.bt_data import BTData
 from beratools.gui.bt_gui_main import MainWindow
