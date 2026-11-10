@@ -1,6 +1,7 @@
 name: Deploy Docs to GitHub Pages
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - main
@@ -42,13 +43,13 @@ jobs:
       - name: Build docs site
         run: pixi run zensical build -f docs/mkdocs.yml
       - name: Upload Pages artifact
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs/site
 
   deploy:
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request'
     needs: test-docs
     runs-on: ubuntu-latest
     timeout-minutes: 10
